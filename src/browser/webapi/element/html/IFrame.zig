@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+const std = @import("std");
 const js = @import("../../../js/js.zig");
 const Page = @import("../../../Page.zig");
 const Window = @import("../../Window.zig");
@@ -101,7 +102,10 @@ pub const Build = struct {
     pub fn attributeChange(element: *Element, name: String, _: String, page: *Page) !void {
         if (!name.eql(comptime .wrap("src"))) return;
         const self = element.as(IFrame);
-        self._src = element.getAttributeSafe(comptime .wrap("src")) orelse "";
+        const new_src = element.getAttributeSafe(comptime .wrap("src")) orelse "";
+        // Only navigate if src actually changed
+        if (std.mem.eql(u8, new_src, self._src)) return;
+        self._src = new_src;
         if (element.asNode().isConnected()) {
             self._executed = false;
             try page.iframeAddedCallback(self);
