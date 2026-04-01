@@ -619,7 +619,27 @@ fn looksLikeNewDocument(html: []const u8) bool {
         std.ascii.startsWithIgnoreCase(trimmed, "<html");
 }
 
-pub fn write(self: *Document, text: []const []const u8, page: *Page) !void {
+/// Resolve the owning page for this document. When document.write() is called
+/// on an iframe's document from the parent page, the bridge passes the parent's
+/// page. We need to find the iframe's page so scripts execute in the right context.
+fn resolveOwningPage(self: *Document, caller_page: *Page) *Page {
+    // Fast path: document belongs to the caller page
+    if (self == caller_page.document) return caller_page;
+
+    // Search child frames for the page that owns this document
+    for (caller_page.frames.items) |frame_page| {
+        if (self == frame_page.document) return frame_page;
+    }
+
+    // Not found in immediate children — return caller's page as fallback
+    return caller_page;
+}
+
+pub fn write(self: *Document, text: []const []const u8, page_arg: *Page) !void {
+    // If this document belongs to an iframe (different page than caller),
+    // use the iframe's page for parsing and script execution.
+    const page = self.resolveOwningPage(page_arg);
+
     if (self._type == .xml) {
         return error.InvalidStateError;
     }
@@ -712,7 +732,8 @@ pub fn write(self: *Document, text: []const []const u8, page: *Page) !void {
     self._write_insertion_point = children_to_insert.getLast();
 }
 
-pub fn open(self: *Document, page: *Page) !*Document {
+pub fn open(self: *Document, page_arg: *Page) !*Document {
+    const page = self.resolveOwningPage(page_arg);
     if (self._type == .xml) {
         return error.InvalidStateError;
     }
@@ -754,7 +775,8 @@ pub fn open(self: *Document, page: *Page) !*Document {
     return self;
 }
 
-pub fn close(self: *Document, page: *Page) !void {
+pub fn close(self: *Document, page_arg: *Page) !void {
+    const page = self.resolveOwningPage(page_arg);
     if (self._type == .xml) {
         return error.InvalidStateError;
     }

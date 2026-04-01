@@ -1070,8 +1070,23 @@ pub fn isGoingAway(self: *const Page) bool {
     return parent.isGoingAway();
 }
 
+/// Find the page that owns a given node's document. If the node belongs to
+/// a child iframe's document, return that iframe's page. Returns null if not found.
+fn resolvePageForNode(self: *Page, node: *Node) ?*Page {
+    const owner_doc = node.ownerDocument(self) orelse return null;
+    if (owner_doc == self.document) return self;
+    for (self.frames.items) |frame_page| {
+        if (owner_doc == frame_page.document) return frame_page;
+    }
+    return null;
+}
+
 pub fn scriptAddedCallback(self: *Page, comptime from_parser: bool, script: *Element.Html.Script) !void {
-    if (self.isGoingAway()) {
+    // Resolve the correct page for this script. If the script is in an iframe's
+    // document, dispatch to the iframe's page so it executes in the right V8 context.
+    const target_page = self.resolvePageForNode(script.asNode()) orelse self;
+
+    if (target_page.isGoingAway()) {
         // if we're planning on navigating to another page, don't run this script
         return;
     }
@@ -1084,12 +1099,12 @@ pub fn scriptAddedCallback(self: *Page, comptime from_parser: bool, script: *Ele
         }
     }
 
-    self._script_manager.addFromElement(from_parser, script, "parsing") catch |err| {
+    target_page._script_manager.addFromElement(from_parser, script, "parsing") catch |err| {
         log.err(.page, "page.scriptAddedCallback", .{
             .err = err,
-            .url = self.url,
+            .url = target_page.url,
             .src = script.asElement().getAttributeSafe(comptime .wrap("src")),
-            .type = self._type,
+            .type = target_page._type,
         });
     };
 }
