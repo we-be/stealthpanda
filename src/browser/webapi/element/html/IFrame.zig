@@ -88,10 +88,23 @@ pub const JsApi = struct {
     pub const contentDocument = bridge.accessor(IFrame.getContentDocument, null, .{});
 };
 
+const String = @import("../../../../string.zig").String;
+
 pub const Build = struct {
     pub fn complete(node: *Node, _: *Page) !void {
         const self = node.as(IFrame);
         const element = self.asElement();
         self._src = element.getAttributeSafe(comptime .wrap("src")) orelse "";
+    }
+
+    /// Handle attribute changes — triggers iframe navigation when src is set via setAttribute.
+    pub fn attributeChange(element: *Element, name: String, _: String, page: *Page) !void {
+        if (!name.eql(comptime .wrap("src"))) return;
+        const self = element.as(IFrame);
+        self._src = element.getAttributeSafe(comptime .wrap("src")) orelse "";
+        if (element.asNode().isConnected()) {
+            self._executed = false;
+            try page.iframeAddedCallback(self);
+        }
     }
 };
