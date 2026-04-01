@@ -445,9 +445,10 @@ pub fn postMessage(self: *Window, message: js.Value.Temp, target_origin: ?[]cons
     _ = target_origin;
 
     // self = the window that will get the message
-    // page = the page of the calling context
+    // page = the page of the *target* context (self's page), NOT the caller
+    // We need the caller's window, which is the incumbent context's window
     const target_page = self._page;
-    const source_window = page.window;
+    const source_window = target_page.js.getIncumbent().window;
 
     const arena = try target_page.getArena(.{ .debug = "Window.postMessage" });
     errdefer target_page.releaseArena(arena);
