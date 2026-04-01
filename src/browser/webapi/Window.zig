@@ -147,6 +147,11 @@ pub fn getScreen(self: *Window) *Screen {
     return self._screen;
 }
 
+pub fn getIsSecureContext(self: *const Window) bool {
+    const url = self._page.url;
+    return std.ascii.startsWithIgnoreCase(url, "https://");
+}
+
 pub fn getInnerWidth(self: *const Window) u32 {
     return self._page._session.browser.app.config.screenWidth();
 }
@@ -395,10 +400,12 @@ pub fn reportError(self: *Window, err: js.Value, page: *Page) !void {
     }
 }
 
-pub fn matchMedia(_: *const Window, query: []const u8, page: *Page) !*MediaQueryList {
+pub fn matchMedia(self: *const Window, query: []const u8, page: *Page) !*MediaQueryList {
+    const screen_width = self._page._session.browser.app.config.screenWidth();
     return page._factory.eventTarget(MediaQueryList{
         ._proto = undefined,
         ._media = try page.dupeString(query),
+        ._matches = MediaQueryList.evaluateQuery(query, screen_width),
     });
 }
 
@@ -902,11 +909,7 @@ pub const JsApi = struct {
     pub const scroll = bridge.function(Window.scrollTo, .{});
     pub const scrollBy = bridge.function(Window.scrollBy, .{});
 
-    // Return false since we don't have secure-context-only APIs implemented
-    // (webcam, geolocation, clipboard, etc.)
-    // This is safer and could help avoid processing errors by hinting at
-    // sites not to try to access those features
-    pub const isSecureContext = bridge.property(false, .{ .template = false });
+    pub const isSecureContext = bridge.accessor(Window.getIsSecureContext, null, .{});
 
     pub const innerWidth = bridge.accessor(Window.getInnerWidth, null, .{});
     pub const innerHeight = bridge.accessor(Window.getInnerHeight, null, .{});

@@ -25,6 +25,7 @@ const MediaQueryList = @This();
 
 _proto: *EventTarget,
 _media: []const u8,
+_matches: bool = true,
 
 pub fn deinit(self: *MediaQueryList) void {
     _ = self;
@@ -36,6 +37,68 @@ pub fn asEventTarget(self: *MediaQueryList) *EventTarget {
 
 pub fn getMedia(self: *const MediaQueryList) []const u8 {
     return self._media;
+}
+
+pub fn getMatches(self: *const MediaQueryList) bool {
+    return self._matches;
+}
+
+/// Basic media query evaluation. Handles common queries that bot detection checks.
+pub fn evaluateQuery(query: []const u8, screen_width: u32) bool {
+    const trimmed = std.mem.trim(u8, query, &std.ascii.whitespace);
+
+    // "(prefers-color-scheme: dark)" -> false (we're light)
+    if (std.mem.indexOf(u8, trimmed, "prefers-color-scheme") != null) {
+        return std.mem.indexOf(u8, trimmed, "light") != null;
+    }
+
+    // "(prefers-reduced-motion: ...)" -> no-preference
+    if (std.mem.indexOf(u8, trimmed, "prefers-reduced-motion") != null) {
+        return std.mem.indexOf(u8, trimmed, "no-preference") != null;
+    }
+
+    // "(min-width: Npx)" -> compare against screen width
+    if (std.mem.indexOf(u8, trimmed, "min-width")) |_| {
+        if (parsePxValue(trimmed)) |px| {
+            return screen_width >= px;
+        }
+    }
+
+    // "(max-width: Npx)"
+    if (std.mem.indexOf(u8, trimmed, "max-width")) |_| {
+        if (parsePxValue(trimmed)) |px| {
+            return screen_width <= px;
+        }
+    }
+
+    // "screen", "all", "(color)" -> true
+    if (std.mem.eql(u8, trimmed, "screen") or
+        std.mem.eql(u8, trimmed, "all") or
+        std.mem.eql(u8, trimmed, "(color)"))
+    {
+        return true;
+    }
+
+    // "print" -> false
+    if (std.mem.eql(u8, trimmed, "print")) return false;
+
+    // Default: true (most queries should match for a desktop browser)
+    return true;
+}
+
+fn parsePxValue(query: []const u8) ?u32 {
+    // Find a number followed by "px" in the query
+    var i: usize = 0;
+    while (i < query.len) : (i += 1) {
+        if (std.ascii.isDigit(query[i])) {
+            var end = i;
+            while (end < query.len and std.ascii.isDigit(query[end])) : (end += 1) {}
+            if (end + 2 <= query.len and std.mem.eql(u8, query[end .. end + 2], "px")) {
+                return std.fmt.parseInt(u32, query[i..end], 10) catch null;
+            }
+        }
+    }
+    return null;
 }
 
 pub fn addListener(_: *const MediaQueryList, _: js.Function) void {}
@@ -51,7 +114,7 @@ pub const JsApi = struct {
     };
 
     pub const media = bridge.accessor(MediaQueryList.getMedia, null, .{});
-    pub const matches = bridge.property(false, .{ .template = false, .readonly = true });
+    pub const matches = bridge.accessor(MediaQueryList.getMatches, null, .{});
     pub const addListener = bridge.function(MediaQueryList.addListener, .{ .noop = true });
     pub const removeListener = bridge.function(MediaQueryList.removeListener, .{ .noop = true });
 };
