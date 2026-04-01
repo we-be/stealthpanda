@@ -147,6 +147,20 @@ pub fn getScreen(self: *Window) *Screen {
     return self._screen;
 }
 
+pub fn getOrigin(self: *const Window) []const u8 {
+    // about:blank inherits origin from parent
+    if (std.mem.eql(u8, self._page.url, "about:blank")) {
+        if (self._page.parent) |parent| {
+            return parent.origin orelse "null";
+        }
+    }
+    return self._page.origin orelse "null";
+}
+
+pub fn getCrossOriginIsolated(_: *const Window) bool {
+    return false;
+}
+
 pub fn getIsSecureContext(self: *const Window) bool {
     const url = self._page.url;
     if (std.ascii.startsWithIgnoreCase(url, "https://")) return true;
@@ -431,9 +445,9 @@ pub fn postMessage(self: *Window, message: js.Value.Temp, target_origin: ?[]cons
     _ = target_origin;
 
     // self = the window that will get the message
-    // page = the context calling postMessage
+    // page = the page of the calling context
     const target_page = self._page;
-    const source_window = target_page.js.getIncumbent().window;
+    const source_window = page.window;
 
     const arena = try target_page.getArena(.{ .debug = "Window.postMessage" });
     errdefer target_page.releaseArena(arena);
@@ -917,6 +931,8 @@ pub const JsApi = struct {
     pub const scrollBy = bridge.function(Window.scrollBy, .{});
 
     pub const isSecureContext = bridge.accessor(Window.getIsSecureContext, null, .{});
+    pub const origin = bridge.accessor(Window.getOrigin, null, .{});
+    pub const crossOriginIsolated = bridge.accessor(Window.getCrossOriginIsolated, null, .{});
 
     pub const innerWidth = bridge.accessor(Window.getInnerWidth, null, .{});
     pub const innerHeight = bridge.accessor(Window.getInnerHeight, null, .{});
