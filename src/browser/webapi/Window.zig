@@ -149,7 +149,14 @@ pub fn getScreen(self: *Window) *Screen {
 
 pub fn getIsSecureContext(self: *const Window) bool {
     const url = self._page.url;
-    return std.ascii.startsWithIgnoreCase(url, "https://");
+    if (std.ascii.startsWithIgnoreCase(url, "https://")) return true;
+    // about:blank inherits secure context from parent
+    if (std.mem.eql(u8, url, "about:blank")) {
+        if (self._page.parent) |parent| {
+            return std.ascii.startsWithIgnoreCase(parent.url, "https://");
+        }
+    }
+    return false;
 }
 
 pub fn getInnerWidth(self: *const Window) u32 {
