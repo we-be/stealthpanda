@@ -40,6 +40,16 @@ pub fn getUserAgent(_: *const Navigator, page: *Page) []const u8 {
     return page._session.browser.app.config.http_headers.user_agent;
 }
 
+/// Returns the appVersion — the part of the UA after "Mozilla/"
+pub fn getAppVersion(_: *const Navigator, page: *Page) []const u8 {
+    const ua = page._session.browser.app.config.http_headers.user_agent;
+    const prefix = "Mozilla/";
+    if (std.mem.startsWith(u8, ua, prefix)) {
+        return ua[prefix.len..];
+    }
+    return "5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+}
+
 pub fn getLanguages(_: *const Navigator) [2][]const u8 {
     return .{ "en-US", "en" };
 }
@@ -158,7 +168,7 @@ pub const JsApi = struct {
     pub const userAgent = bridge.accessor(Navigator.getUserAgent, null, .{});
     pub const appName = bridge.property("Netscape", .{ .template = false });
     pub const appCodeName = bridge.property("Netscape", .{ .template = false });
-    pub const appVersion = bridge.property("1.0", .{ .template = false });
+    pub const appVersion = bridge.accessor(Navigator.getAppVersion, null, .{});
     pub const platform = bridge.accessor(Navigator.getPlatform, null, .{});
     pub const language = bridge.property("en-US", .{ .template = false });
     pub const languages = bridge.accessor(Navigator.getLanguages, null, .{});
@@ -167,7 +177,7 @@ pub const JsApi = struct {
     pub const hardwareConcurrency = bridge.property(4, .{ .template = false });
     pub const deviceMemory = bridge.property(@as(f64, 8.0), .{ .template = false });
     pub const maxTouchPoints = bridge.property(0, .{ .template = false });
-    pub const vendor = bridge.property("", .{ .template = false });
+    pub const vendor = bridge.property("Google Inc.", .{ .template = false });
     pub const product = bridge.property("Gecko", .{ .template = false });
     pub const webdriver = bridge.property(false, .{ .template = false });
     pub const plugins = bridge.accessor(Navigator.getPlugins, null, .{});

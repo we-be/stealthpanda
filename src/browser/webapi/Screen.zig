@@ -36,6 +36,23 @@ pub fn asEventTarget(self: *Screen) *EventTarget {
     return self._proto;
 }
 
+pub fn getWidth(_: *const Screen, page: *Page) u32 {
+    return page._session.browser.app.config.screenWidth();
+}
+
+pub fn getHeight(_: *const Screen, page: *Page) u32 {
+    return page._session.browser.app.config.screenHeight();
+}
+
+pub fn getAvailWidth(_: *const Screen, page: *Page) u32 {
+    return page._session.browser.app.config.screenWidth();
+}
+
+pub fn getAvailHeight(_: *const Screen, page: *Page) u32 {
+    // Subtract 40px for taskbar, matching Chrome behavior
+    return page._session.browser.app.config.screenHeight() -| 40;
+}
+
 pub fn getOrientation(self: *Screen, page: *Page) !*Orientation {
     if (self._orientation) |orientation| {
         return orientation;
@@ -54,10 +71,10 @@ pub const JsApi = struct {
         pub var class_id: bridge.ClassId = undefined;
     };
 
-    pub const width = bridge.property(1920, .{ .template = false });
-    pub const height = bridge.property(1080, .{ .template = false });
-    pub const availWidth = bridge.property(1920, .{ .template = false });
-    pub const availHeight = bridge.property(1040, .{ .template = false });
+    pub const width = bridge.accessor(Screen.getWidth, null, .{});
+    pub const height = bridge.accessor(Screen.getHeight, null, .{});
+    pub const availWidth = bridge.accessor(Screen.getAvailWidth, null, .{});
+    pub const availHeight = bridge.accessor(Screen.getAvailHeight, null, .{});
     pub const colorDepth = bridge.property(24, .{ .template = false });
     pub const pixelDepth = bridge.property(24, .{ .template = false });
     pub const orientation = bridge.accessor(Screen.getOrientation, null, .{});

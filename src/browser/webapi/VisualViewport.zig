@@ -36,6 +36,14 @@ pub fn getPageTop(_: *const VisualViewport, page: *Page) u32 {
     return page.window.getScrollY();
 }
 
+pub fn getWidth(_: *const VisualViewport, page: *Page) u32 {
+    return page._session.browser.app.config.screenWidth();
+}
+
+pub fn getHeight(_: *const VisualViewport, page: *Page) u32 {
+    return page._session.browser.app.config.screenHeight();
+}
+
 pub const JsApi = struct {
     pub const bridge = js.Bridge(VisualViewport);
 
@@ -51,7 +59,7 @@ pub const JsApi = struct {
     pub const offsetTop = bridge.property(0, .{ .template = false });
     pub const pageLeft = bridge.accessor(VisualViewport.getPageLeft, null, .{});
     pub const pageTop = bridge.accessor(VisualViewport.getPageTop, null, .{});
-    pub const width = bridge.property(1920, .{ .template = false });
-    pub const height = bridge.property(1080, .{ .template = false });
+    pub const width = bridge.accessor(VisualViewport.getWidth, null, .{});
+    pub const height = bridge.accessor(VisualViewport.getHeight, null, .{});
     pub const scale = bridge.property(1.0, .{ .template = false });
 };

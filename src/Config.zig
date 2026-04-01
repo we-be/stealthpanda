@@ -149,6 +149,20 @@ pub fn logFilterScopes(self: *const Config) ?[]const log.Scope {
     };
 }
 
+pub fn screenWidth(self: *const Config) u32 {
+    return switch (self.mode) {
+        inline .serve, .fetch, .mcp => |opts| opts.common.screen_width,
+        else => 1920,
+    };
+}
+
+pub fn screenHeight(self: *const Config) u32 {
+    return switch (self.mode) {
+        inline .serve, .fetch, .mcp => |opts| opts.common.screen_height,
+        else => 1080,
+    };
+}
+
 pub fn userAgentSuffix(self: *const Config) ?[]const u8 {
     return switch (self.mode) {
         inline .serve, .fetch, .mcp => |opts| opts.common.user_agent_suffix,
@@ -271,12 +285,15 @@ pub const Common = struct {
     web_bot_auth_key_file: ?[]const u8 = null,
     web_bot_auth_keyid: ?[]const u8 = null,
     web_bot_auth_domain: ?[]const u8 = null,
+
+    screen_width: u32 = 1920,
+    screen_height: u32 = 1080,
 };
 
 /// Pre-formatted HTTP headers for reuse across Http and Client.
 /// Must be initialized with an allocator that outlives all HTTP connections.
 pub const HttpHeaders = struct {
-    const user_agent_base: [:0]const u8 = "Lightpanda/1.0";
+    const user_agent_base: [:0]const u8 = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
     user_agent: [:0]const u8, // User agent value (e.g. "Lightpanda/1.0")
     user_agent_header: [:0]const u8,
@@ -1044,6 +1061,30 @@ fn parseCommonArg(
             return error.InvalidArgument;
         };
         common.web_bot_auth_domain = try allocator.dupe(u8, str);
+        return true;
+    }
+
+    if (std.mem.eql(u8, "--screen-width", opt) or std.mem.eql(u8, "--screen_width", opt)) {
+        const str = args.next() orelse {
+            log.fatal(.app, "missing argument value", .{ .arg = opt });
+            return error.InvalidArgument;
+        };
+        common.screen_width = std.fmt.parseInt(u32, str, 10) catch {
+            log.fatal(.app, "invalid integer value", .{ .arg = opt });
+            return error.InvalidArgument;
+        };
+        return true;
+    }
+
+    if (std.mem.eql(u8, "--screen-height", opt) or std.mem.eql(u8, "--screen_height", opt)) {
+        const str = args.next() orelse {
+            log.fatal(.app, "missing argument value", .{ .arg = opt });
+            return error.InvalidArgument;
+        };
+        common.screen_height = std.fmt.parseInt(u32, str, 10) catch {
+            log.fatal(.app, "invalid integer value", .{ .arg = opt });
+            return error.InvalidArgument;
+        };
         return true;
     }
 

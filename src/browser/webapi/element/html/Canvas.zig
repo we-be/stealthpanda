@@ -103,6 +103,13 @@ pub fn transferControlToOffscreen(self: *Canvas, page: *Page) !*OffscreenCanvas 
     return OffscreenCanvas.constructor(width, height, page);
 }
 
+/// Returns a data URL containing a representation of the canvas image.
+/// Currently returns a minimal transparent PNG placeholder.
+pub fn toDataURL(_: *const Canvas, _: ?[]const u8) []const u8 {
+    // Minimal 1x1 transparent PNG encoded as base64 data URL
+    return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+}
+
 pub const JsApi = struct {
     pub const bridge = js.Bridge(Canvas);
 
@@ -116,4 +123,5 @@ pub const JsApi = struct {
     pub const height = bridge.accessor(Canvas.getHeight, Canvas.setHeight, .{});
     pub const getContext = bridge.function(Canvas.getContext, .{});
     pub const transferControlToOffscreen = bridge.function(Canvas.transferControlToOffscreen, .{});
+    pub const toDataURL = bridge.function(Canvas.toDataURL, .{});
 };

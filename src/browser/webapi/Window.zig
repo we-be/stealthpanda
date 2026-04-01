@@ -141,6 +141,14 @@ pub fn getScreen(self: *Window) *Screen {
     return self._screen;
 }
 
+pub fn getInnerWidth(self: *const Window) u32 {
+    return self._page._session.browser.app.config.screenWidth();
+}
+
+pub fn getInnerHeight(self: *const Window) u32 {
+    return self._page._session.browser.app.config.screenHeight();
+}
+
 pub fn getVisualViewport(self: *const Window) *VisualViewport {
     return self._visual_viewport;
 }
@@ -894,8 +902,8 @@ pub const JsApi = struct {
     // sites not to try to access those features
     pub const isSecureContext = bridge.property(false, .{ .template = false });
 
-    pub const innerWidth = bridge.property(1920, .{ .template = false });
-    pub const innerHeight = bridge.property(1080, .{ .template = false });
+    pub const innerWidth = bridge.accessor(Window.getInnerWidth, null, .{});
+    pub const innerHeight = bridge.accessor(Window.getInnerHeight, null, .{});
     pub const devicePixelRatio = bridge.property(1, .{ .template = false });
 
     // This should return a window-like object in specific conditions. Would be
