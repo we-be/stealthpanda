@@ -159,12 +159,51 @@ pub const Extension = union(enum) {
     };
 };
 
-/// This actually takes "GLenum" which, in fact, is a fancy way to say number.
-/// Return value also depends on what's being passed as `pname`; we don't really
-/// support any though.
+/// Returns WebGL parameters. Real WebGL returns polymorphic types but we
+/// return strings for bridge compatibility. Bot detection primarily checks
+/// UNMASKED_VENDOR_WEBGL (0x9245) and UNMASKED_RENDERER_WEBGL (0x9246).
 pub fn getParameter(_: *const WebGLRenderingContext, pname: u32) []const u8 {
-    _ = pname;
-    return "";
+    return switch (pname) {
+        // UNMASKED_VENDOR_WEBGL — GPU vendor via WEBGL_debug_renderer_info
+        0x9245 => "Google Inc. (NVIDIA)",
+        // UNMASKED_RENDERER_WEBGL — GPU renderer via WEBGL_debug_renderer_info
+        0x9246 => "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+        // VENDOR
+        0x1F00 => "WebKit",
+        // RENDERER
+        0x1F01 => "WebKit WebGL",
+        // VERSION
+        0x1F02 => "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
+        // SHADING_LANGUAGE_VERSION
+        0x8B8C => "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
+        // MAX_TEXTURE_SIZE
+        0x0D33 => "16384",
+        // MAX_RENDERBUFFER_SIZE
+        0x84E8 => "16384",
+        // MAX_VIEWPORT_DIMS — would be an array, return as string
+        0x0D3A => "32767,32767",
+        // MAX_VERTEX_ATTRIBS
+        0x8869 => "16",
+        // MAX_VERTEX_UNIFORM_VECTORS
+        0x8DFB => "4096",
+        // MAX_VARYING_VECTORS
+        0x8DFC => "30",
+        // MAX_FRAGMENT_UNIFORM_VECTORS
+        0x8DFD => "1024",
+        // MAX_TEXTURE_IMAGE_UNITS
+        0x8872 => "16",
+        // MAX_VERTEX_TEXTURE_IMAGE_UNITS
+        0x8B4C => "16",
+        // MAX_COMBINED_TEXTURE_IMAGE_UNITS
+        0x8B4D => "32",
+        // MAX_CUBE_MAP_TEXTURE_SIZE
+        0x851C => "16384",
+        // ALIASED_LINE_WIDTH_RANGE
+        0x846E => "1,1",
+        // ALIASED_POINT_SIZE_RANGE
+        0x846D => "1,1024",
+        else => "",
+    };
 }
 
 /// Enables a WebGL extension.
