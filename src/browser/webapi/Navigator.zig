@@ -81,6 +81,10 @@ pub fn getStorage(self: *Navigator) *StorageManager {
     return &self._storage;
 }
 
+pub fn sendBeacon(_: *const Navigator, _: []const u8, _: ?[]const u8) bool {
+    return true;
+}
+
 pub fn getBattery(_: *const Navigator, page: *Page) !js.Promise {
     log.info(.not_implemented, "navigator.getBattery", .{});
     return page.js.local.?.rejectErrorPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
@@ -189,6 +193,7 @@ pub const JsApi = struct {
     // Methods
     pub const javaEnabled = bridge.function(Navigator.javaEnabled, .{});
     pub const getBattery = bridge.function(Navigator.getBattery, .{});
+    pub const sendBeacon = bridge.function(Navigator.sendBeacon, .{});
     pub const permissions = bridge.accessor(Navigator.getPermissions, null, .{});
     pub const storage = bridge.accessor(Navigator.getStorage, null, .{});
 };

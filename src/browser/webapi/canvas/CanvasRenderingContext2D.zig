@@ -122,6 +122,11 @@ pub fn stroke(_: *CanvasRenderingContext2D) void {}
 pub fn clip(_: *CanvasRenderingContext2D) void {}
 pub fn fillText(_: *CanvasRenderingContext2D, _: []const u8, _: f64, _: f64, _: ?f64) void {}
 pub fn strokeText(_: *CanvasRenderingContext2D, _: []const u8, _: f64, _: f64, _: ?f64) void {}
+pub fn drawImage(_: *CanvasRenderingContext2D, _: ?*anyopaque, _: f64, _: f64) void {}
+pub fn setLineDash(_: *CanvasRenderingContext2D) void {}
+pub fn isPointInPath(_: *CanvasRenderingContext2D, _: f64, _: f64) bool {
+    return false;
+}
 
 pub const JsApi = struct {
     pub const bridge = js.Bridge(CanvasRenderingContext2D);
@@ -175,6 +180,9 @@ pub const JsApi = struct {
     pub const clip = bridge.function(CanvasRenderingContext2D.clip, .{ .noop = true });
     pub const fillText = bridge.function(CanvasRenderingContext2D.fillText, .{ .noop = true });
     pub const strokeText = bridge.function(CanvasRenderingContext2D.strokeText, .{ .noop = true });
+    pub const drawImage = bridge.function(CanvasRenderingContext2D.drawImage, .{ .noop = true });
+    pub const setLineDash = bridge.function(CanvasRenderingContext2D.setLineDash, .{ .noop = true });
+    pub const isPointInPath = bridge.function(CanvasRenderingContext2D.isPointInPath, .{});
 };
 
 const testing = @import("../../../testing.zig");
