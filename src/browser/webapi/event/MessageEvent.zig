@@ -100,8 +100,11 @@ pub fn getOrigin(self: *const MessageEvent) []const u8 {
     return self._origin;
 }
 
-pub fn getSource(self: *const MessageEvent) ?*Window {
-    return self._source;
+pub fn getSource(self: *const MessageEvent, page: *Page) ?Window.Access {
+    const source_window = self._source orelse return null;
+    // Return through Window.Access so cross-origin windows get the
+    // CrossOriginWindow wrapper (same instance as iframe.contentWindow)
+    return Window.Access.init(page.window, source_window);
 }
 
 pub const JsApi = struct {
