@@ -82,6 +82,13 @@ pub fn build(b: *Build) !void {
         try linkCurl(b, mod, enable_tsan);
         try linkHtml5Ever(b, mod);
 
+        // z2d 2D graphics library for Canvas rendering
+        const z2d_dep = b.dependency("z2d", .{
+            .target = target,
+            .optimize = optimize,
+        });
+        mod.addImport("z2d", z2d_dep.module("z2d"));
+
         break :blk mod;
     };
 

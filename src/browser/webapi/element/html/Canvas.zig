@@ -26,6 +26,7 @@ const HtmlElement = @import("../Html.zig");
 const CanvasRenderingContext2D = @import("../../canvas/CanvasRenderingContext2D.zig");
 const WebGLRenderingContext = @import("../../canvas/WebGLRenderingContext.zig");
 const OffscreenCanvas = @import("../../canvas/OffscreenCanvas.zig");
+const png_encode = @import("../../canvas/png_encode.zig");
 
 const Canvas = @This();
 _proto: *HtmlElement,
@@ -104,11 +105,26 @@ pub fn transferControlToOffscreen(self: *Canvas, page: *Page) !*OffscreenCanvas 
 }
 
 /// Returns a data URL containing a representation of the canvas image.
-/// Currently returns a minimal transparent PNG placeholder.
-pub fn toDataURL(_: *const Canvas, _: ?[]const u8) []const u8 {
-    // Minimal 1x1 transparent PNG encoded as base64 data URL
-    return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+pub fn toDataURL(self: *Canvas, _: ?[]const u8, page: *Page) []const u8 {
+    if (self._cached) |cached| {
+        switch (cached) {
+            .@"2d" => |ctx| {
+                if (ctx.getPixelBuffer()) |pixels| {
+                    return png_encode.encodeToDataURL(
+                        page.call_arena,
+                        pixels,
+                        self.getWidth(),
+                        self.getHeight(),
+                    ) catch return fallback_png;
+                }
+            },
+            .webgl => {},
+        }
+    }
+    return fallback_png;
 }
+
+const fallback_png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
 pub const JsApi = struct {
     pub const bridge = js.Bridge(Canvas);

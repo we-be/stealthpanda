@@ -30,6 +30,10 @@
             .url = "https://github.com/curl/curl/releases/download/curl-8_18_0/curl-8.18.0.tar.gz",
             .hash = "N-V-__8AALp9QAGn6CCHZ6fK_FfMyGtG824LSHYHHasM3w-y",
         },
+        .z2d = .{
+            .url = "git+https://github.com/vancluever/z2d?ref=v0.10.0#6d1d7bda6b696c0941d204e6042f1e8ee900e001",
+            .hash = "z2d-0.10.0-j5P_Hu-6FgBsZNgwphIqh17jDnj8_yPtD8yzjO6PpHRQ",
+        },
     },
     .paths = .{""},
 }
