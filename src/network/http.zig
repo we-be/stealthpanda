@@ -63,6 +63,15 @@ pub const Headers = struct {
         return .{ .headers = header_list };
     }
 
+    /// Initialize headers with User-Agent and Client Hints (Chrome-like).
+    pub fn initWithClientHints(http_headers: *const Config.HttpHeaders) !Headers {
+        var headers = try init(http_headers.user_agent_header);
+        try headers.add(http_headers.sec_ch_ua_header);
+        try headers.add(http_headers.sec_ch_ua_mobile_header);
+        try headers.add(http_headers.sec_ch_ua_platform_header);
+        return headers;
+    }
+
     pub fn deinit(self: *const Headers) void {
         if (self.headers) |hdr| {
             libcurl.curl_slist_free_all(hdr);
@@ -348,6 +357,10 @@ pub const Connection = struct {
                 try libcurl.curl_easy_setopt(self._easy, .proxy_ssl_verify_peer, false);
             }
         }
+
+        // TLS fingerprint profile (Chrome-like by default)
+        const tls_profile = config.tlsProfile();
+        try tls_profile.apply(self._easy);
 
         // debug
         if (comptime ENABLE_DEBUG) {

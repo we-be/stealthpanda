@@ -202,7 +202,7 @@ pub fn changeProxy(self: *Client, proxy: ?[:0]const u8) !void {
 }
 
 pub fn newHeaders(self: *const Client) !http.Headers {
-    return http.Headers.init(self.network.config.http_headers.user_agent_header);
+    return http.Headers.initWithClientHints(&self.network.config.http_headers);
 }
 
 pub fn abort(self: *Client) void {

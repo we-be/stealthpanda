@@ -24,6 +24,7 @@ const log = @import("log.zig");
 const dump = @import("browser/dump.zig");
 
 const WebBotAuthConfig = @import("network/WebBotAuth.zig").Config;
+const TlsProfile = @import("network/TlsProfile.zig").TlsProfile;
 const mcp = @import("mcp.zig");
 
 pub const RunMode = enum {
@@ -147,6 +148,17 @@ pub fn logFilterScopes(self: *const Config) ?[]const log.Scope {
         inline .serve, .fetch, .mcp => |opts| opts.common.log_filter_scopes,
         else => unreachable,
     };
+}
+
+pub fn tlsProfile(self: *const Config) *const TlsProfile {
+    const name: ?[]const u8 = switch (self.mode) {
+        inline .serve, .fetch, .mcp => |opts| opts.common.tls_profile,
+        else => null,
+    };
+    if (name) |n| {
+        return TlsProfile.fromName(n) orelse &TlsProfile.default;
+    }
+    return &TlsProfile.default;
 }
 
 pub fn screenWidth(self: *const Config) u32 {
@@ -288,6 +300,8 @@ pub const Common = struct {
 
     screen_width: u32 = 1920,
     screen_height: u32 = 1080,
+
+    tls_profile: ?[]const u8 = null,
 };
 
 /// Pre-formatted HTTP headers for reuse across Http and Client.
@@ -295,8 +309,11 @@ pub const Common = struct {
 pub const HttpHeaders = struct {
     const user_agent_base: [:0]const u8 = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-    user_agent: [:0]const u8, // User agent value (e.g. "Lightpanda/1.0")
+    user_agent: [:0]const u8,
     user_agent_header: [:0]const u8,
+    sec_ch_ua_header: [:0]const u8,
+    sec_ch_ua_mobile_header: [:0]const u8,
+    sec_ch_ua_platform_header: [:0]const u8,
 
     proxy_bearer_header: ?[:0]const u8,
 
@@ -310,6 +327,26 @@ pub const HttpHeaders = struct {
         const user_agent_header = try std.fmt.allocPrintSentinel(allocator, "User-Agent: {s}", .{user_agent}, 0);
         errdefer allocator.free(user_agent_header);
 
+        // Client Hints headers — must match the UA string
+        const sec_ch_ua_header: [:0]const u8 = try std.fmt.allocPrintSentinel(
+            allocator,
+            "sec-ch-ua: \"Chromium\";v=\"131\", \"Google Chrome\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+            .{},
+            0,
+        );
+        const sec_ch_ua_mobile_header: [:0]const u8 = try std.fmt.allocPrintSentinel(
+            allocator,
+            "sec-ch-ua-mobile: ?0",
+            .{},
+            0,
+        );
+        const sec_ch_ua_platform_header: [:0]const u8 = try std.fmt.allocPrintSentinel(
+            allocator,
+            "sec-ch-ua-platform: \"Linux\"",
+            .{},
+            0,
+        );
+
         const proxy_bearer_header: ?[:0]const u8 = if (config.proxyBearerToken()) |token|
             try std.fmt.allocPrintSentinel(allocator, "Proxy-Authorization: Bearer {s}", .{token}, 0)
         else
@@ -318,6 +355,9 @@ pub const HttpHeaders = struct {
         return .{
             .user_agent = user_agent,
             .user_agent_header = user_agent_header,
+            .sec_ch_ua_header = sec_ch_ua_header,
+            .sec_ch_ua_mobile_header = sec_ch_ua_mobile_header,
+            .sec_ch_ua_platform_header = sec_ch_ua_platform_header,
             .proxy_bearer_header = proxy_bearer_header,
         };
     }
@@ -326,6 +366,9 @@ pub const HttpHeaders = struct {
         if (self.proxy_bearer_header) |hdr| {
             allocator.free(hdr);
         }
+        allocator.free(self.sec_ch_ua_header);
+        allocator.free(self.sec_ch_ua_mobile_header);
+        allocator.free(self.sec_ch_ua_platform_header);
         allocator.free(self.user_agent_header);
         if (self.user_agent.ptr != user_agent_base.ptr) {
             allocator.free(self.user_agent);
@@ -1061,6 +1104,19 @@ fn parseCommonArg(
             return error.InvalidArgument;
         };
         common.web_bot_auth_domain = try allocator.dupe(u8, str);
+        return true;
+    }
+
+    if (std.mem.eql(u8, "--tls-profile", opt) or std.mem.eql(u8, "--tls_profile", opt)) {
+        const str = args.next() orelse {
+            log.fatal(.app, "missing argument value", .{ .arg = opt });
+            return error.InvalidArgument;
+        };
+        if (TlsProfile.fromName(str) == null) {
+            log.fatal(.app, "unknown TLS profile", .{ .arg = opt });
+            return error.InvalidArgument;
+        }
+        common.tls_profile = try allocator.dupe(u8, str);
         return true;
     }
 

@@ -167,6 +167,12 @@ pub const CurlOption = enum(c.CURLoption) {
     header_function = c.CURLOPT_HEADERFUNCTION,
     write_data = c.CURLOPT_WRITEDATA,
     write_function = c.CURLOPT_WRITEFUNCTION,
+
+    // TLS fingerprint options
+    ssl_cipher_list = c.CURLOPT_SSL_CIPHER_LIST,
+    tls13_ciphers = c.CURLOPT_TLS13_CIPHERS,
+    ssl_ec_curves = c.CURLOPT_SSL_EC_CURVES,
+    http_version = c.CURLOPT_HTTP_VERSION,
 };
 
 pub const CurlMOption = enum(c.CURLMoption) {
@@ -551,6 +557,7 @@ pub fn curl_easy_setopt(easy: *Curl, comptime option: CurlOption, value: anytype
         .max_redirs,
         .follow_location,
         .post_field_size,
+        .http_version,
         => blk: {
             const n: c_long = switch (@typeInfo(@TypeOf(value))) {
                 .comptime_int, .int => @intCast(value),
@@ -568,6 +575,9 @@ pub fn curl_easy_setopt(easy: *Curl, comptime option: CurlOption, value: anytype
         .user_pwd,
         .proxy_user_pwd,
         .copy_post_fields,
+        .ssl_cipher_list,
+        .tls13_ciphers,
+        .ssl_ec_curves,
         => blk: {
             const s: ?[*]const u8 = value;
             break :blk c.curl_easy_setopt(easy, opt, s);
