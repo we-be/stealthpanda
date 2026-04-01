@@ -100,8 +100,9 @@ pub fn getOrigin(self: *const MessageEvent) []const u8 {
     return self._origin;
 }
 
-pub fn getSource(self: *const MessageEvent) ?*Window {
-    return self._source;
+pub fn getSource(self: *const MessageEvent, page: *Page) ?Window.Access {
+    const source_window = self._source orelse return null;
+    return Window.Access.init(page.window, source_window);
 }
 
 pub const JsApi = struct {
