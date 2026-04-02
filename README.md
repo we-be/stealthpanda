@@ -2,6 +2,8 @@
 
 <img src="assets/logo.png" alt="StealthPanda" height="200">
 
+# StealthPanda
+
 **Make Lightpanda invisible to anti-bot detection.**
 
 [![License](https://img.shields.io/github/license/we-be/stealthpanda)](LICENSE)
