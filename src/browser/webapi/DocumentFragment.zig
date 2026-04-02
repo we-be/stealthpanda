@@ -249,9 +249,9 @@ pub const JsApi = struct {
     // calling the Zig Node.appendChild, leaving iframes unprocessed.
     // Node methods must be explicitly defined here because V8's prototype
     // chain resolution may not reach Node's methods for DocumentFragment/ShadowRoot.
-    pub const appendChild = bridge.function(_appendChild, .{});
-    fn _appendChild(self: *DocumentFragment, child: *Node, page: *Page) *Node {
-        return self.asNode().appendChild(child, page) catch child;
+    pub const appendChild = bridge.function(_appendChild, .{ .dom_exception = true });
+    fn _appendChild(self: *DocumentFragment, child: *Node, page: *Page) !*Node {
+        return self.asNode().appendChild(child, page);
     }
 
     pub const insertBefore = bridge.function(_insertBefore, .{ .dom_exception = true });

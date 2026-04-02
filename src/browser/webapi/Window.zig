@@ -448,6 +448,7 @@ pub fn postMessage(self: *Window, message: js.Value.Temp, target_origin: ?[]cons
     // page = the page of the *target* context (self's page), NOT the caller
     // We need the caller's window, which is the incumbent context's window
     const target_page = self._page;
+    log.warn(.app, "PM", .{ .to = if (target_page.url.len > 50) target_page.url[0..50] else target_page.url });
     const source_window = target_page.js.getIncumbent().window;
 
     const arena = try target_page.getArena(.{ .debug = "Window.postMessage" });
