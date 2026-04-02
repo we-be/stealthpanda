@@ -184,6 +184,23 @@ pub const script: [:0]const u8 =
     \\    'webkitURL'
     \\  ];
     \\
+    \\  // Hide non-standard types from Object.getOwnPropertyNames
+    \\  var _nonChromeTypes = new Set([
+    \\    'Chrome','ChromeRuntime','Console','CrossOriginWindow','Css',
+    \\    'CSSStyleProperties','SpeechSynthesis','MediaDevices','TextMetrics',
+    \\    'BaseAudioContext','StorageEstimate','SVGGenericElement',
+    \\    'LazyLoadingObserver','ReadableStreamAsyncIterator',
+    \\    'WEBGL_debug_renderer_info','WEBGL_lose_context',
+    \\  ]);
+    \\  var _origGOPN = Object.getOwnPropertyNames;
+    \\  Object.getOwnPropertyNames = function(obj) {
+    \\    var names = _origGOPN.call(Object, obj);
+    \\    if (obj === window || (obj && obj.constructor === Window)) {
+    \\      names = names.filter(function(n) { return !_nonChromeTypes.has(n); });
+    \\    }
+    \\    return names;
+    \\  };
+    \\
     \\  var mn = window._makeNative || function(){};
     \\  for (var i = 0; i < missing.length; i++) {
     \\    var name = missing[i];
@@ -251,5 +268,79 @@ pub const script: [:0]const u8 =
     \\      try { window[prop] = null; } catch(e) {}
     \\    }
     \\  }
+    \\
+    \\  // Add missing Navigator properties
+    \\  var nav = navigator;
+    \\  var navMissing = {
+    \\    clipboard: {read:function(){return Promise.resolve([]);},write:function(){return Promise.resolve();},readText:function(){return Promise.resolve('');},writeText:function(){return Promise.resolve();}},
+    \\    credentials: {create:function(){return Promise.resolve(null);},get:function(){return Promise.resolve(null);},preventSilentAccess:function(){return Promise.resolve();},store:function(){return Promise.resolve();}},
+    \\    geolocation: {getCurrentPosition:function(){},watchPosition:function(){return 0;},clearWatch:function(){}},
+    \\    locks: {request:function(){return Promise.resolve();},query:function(){return Promise.resolve({held:[],pending:[]});}},
+    \\    mediaCapabilities: {decodingInfo:function(){return Promise.resolve({supported:true,smooth:true,powerEfficient:true});},encodingInfo:function(){return Promise.resolve({supported:true,smooth:true,powerEfficient:true});}},
+    \\    mediaSession: {metadata:null,playbackState:'none',setActionHandler:function(){},setPositionState:function(){}},
+    \\    mimeTypes: navigator.plugins ? {length:2} : {length:0},
+    \\    usb: {getDevices:function(){return Promise.resolve([]);}},
+    \\    hid: {getDevices:function(){return Promise.resolve([]);}},
+    \\    serial: {getPorts:function(){return Promise.resolve([]);}},
+    \\    keyboard: {getLayoutMap:function(){return Promise.resolve(new Map());},lock:function(){return Promise.resolve();},unlock:function(){}},
+    \\    wakeLock: {request:function(){return Promise.resolve({released:false,release:function(){return Promise.resolve();}});}},
+    \\    gpu: undefined,
+    \\    userActivation: {hasBeenActive:false,isActive:false},
+    \\    scheduling: {isInputPending:function(){return false;}},
+    \\    pdfViewerEnabled: true,
+    \\    productSub: '20030107',
+    \\    vendorSub: '',
+    \\    virtualKeyboard: {boundingRect:{x:0,y:0,width:0,height:0},overlaysContent:false,show:function(){},hide:function(){}},
+    \\  };
+    \\  for (var key in navMissing) {
+    \\    if (!(key in nav)) {
+    \\      try { Object.defineProperty(nav, key, {
+    \\        get: (function(v){return function(){return v;};})(navMissing[key]),
+    \\        configurable: true, enumerable: true
+    \\      }); } catch(e) {}
+    \\    }
+    \\  }
+    \\  // getGamepads, vibrate, getUserMedia
+    \\  if (!nav.getGamepads) nav.getGamepads = function() { return []; };
+    \\  if (!nav.vibrate) nav.vibrate = function() { return true; };
+    \\  if (!nav.getUserMedia) nav.getUserMedia = function() {};
+    \\  if (!nav.requestMediaKeySystemAccess) nav.requestMediaKeySystemAccess = function() { return Promise.reject(new Error('not supported')); };
+    \\  if (!nav.requestMIDIAccess) nav.requestMIDIAccess = function() { return Promise.reject(new Error('not supported')); };
+    \\  if (!nav.getInstalledRelatedApps) nav.getInstalledRelatedApps = function() { return Promise.resolve([]); };
+    \\  if (!nav.setAppBadge) nav.setAppBadge = function() { return Promise.resolve(); };
+    \\  if (!nav.clearAppBadge) nav.clearAppBadge = function() { return Promise.resolve(); };
+    \\
+    \\  // Add missing Document properties
+    \\  var doc = document;
+    \\  if (!doc.designMode) Object.defineProperty(doc, 'designMode', {get:function(){return 'off';},set:function(){},configurable:true});
+    \\  if (!doc.alinkColor) doc.alinkColor = '';
+    \\  if (!doc.bgColor) doc.bgColor = '';
+    \\  if (!doc.fgColor) doc.fgColor = '';
+    \\  if (!doc.linkColor) doc.linkColor = '';
+    \\  if (!doc.vlinkColor) doc.vlinkColor = '';
+    \\  if (!doc.fullscreenElement) doc.fullscreenElement = null;
+    \\  if (!doc.fullscreenEnabled) doc.fullscreenEnabled = true;
+    \\  if (typeof doc.fullscreen === 'undefined') doc.fullscreen = false;
+    \\  if (!doc.captureEvents) doc.captureEvents = function(){};
+    \\  if (!doc.releaseEvents) doc.releaseEvents = function(){};
+    \\  if (!doc.featurePolicy) doc.featurePolicy = {allowsFeature:function(){return true;},features:function(){return[];},allowedFeatures:function(){return[];}};
+    \\  if (!doc.fragmentDirective) doc.fragmentDirective = {};
+    \\  if (!doc.pictureInPictureElement) doc.pictureInPictureElement = null;
+    \\  if (!doc.pictureInPictureEnabled) doc.pictureInPictureEnabled = true;
+    \\  if (!doc.exitPictureInPicture) doc.exitPictureInPicture = function(){return Promise.resolve();};
+    \\  if (!doc.hasStorageAccess) doc.hasStorageAccess = function(){return Promise.resolve(true);};
+    \\  if (!doc.requestStorageAccess) doc.requestStorageAccess = function(){return Promise.resolve();};
+    \\  if (!doc.wasDiscarded) doc.wasDiscarded = false;
+    \\  if (!doc.prerendering) doc.prerendering = false;
+    \\  if (typeof doc.onvisibilitychange === 'undefined') doc.onvisibilitychange = null;
+    \\  if (typeof doc.onfullscreenchange === 'undefined') doc.onfullscreenchange = null;
+    \\  if (typeof doc.onfullscreenerror === 'undefined') doc.onfullscreenerror = null;
+    \\  if (typeof doc.onpointerlockchange === 'undefined') doc.onpointerlockchange = null;
+    \\  if (typeof doc.onpointerlockerror === 'undefined') doc.onpointerlockerror = null;
+    \\  if (typeof doc.onprerenderingchange === 'undefined') doc.onprerenderingchange = null;
+    \\  if (typeof doc.onselectionchange === 'undefined') doc.onselectionchange = null;
+    \\  if (typeof doc.onselectstart === 'undefined') doc.onselectstart = null;
+    \\  if (typeof doc.onfreeze === 'undefined') doc.onfreeze = null;
+    \\  if (typeof doc.onresume === 'undefined') doc.onresume = null;
     \\})();
 ;
