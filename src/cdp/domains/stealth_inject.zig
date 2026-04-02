@@ -58,17 +58,14 @@ pub const script: [:0]const u8 =
     \\      var iframe = this;
     \\      // Defer with multiple delays to ensure shadow host is connected
     \\      var triggered = false;
-    \\      window.__iframeDebug = window.__iframeDebug || [];
     \\      var triggerSrc = function() {
     \\        if (triggered) return;
     \\        var alive = !!iframe;
     \\        var connected = alive && iframe.isConnected;
     \\        var hasSrc = alive && iframe.getAttribute('src');
-    \\        var srcProp = alive && typeof Object.getOwnPropertyDescriptor(Object.getPrototypeOf(iframe), 'src');
-    \\        window.__iframeDebug.push('alive:'+alive+' c:'+connected+' srcDesc:'+srcProp+' tag:'+iframe?.tagName);
     \\        if (connected) {
     \\          triggered = true;
-    \\          try { iframe.src = hasSrc + '#t'; } catch(e) { window.__iframeDebug.push('err:'+e.message); }
+    \\          try { iframe.src = hasSrc; } catch(e) {}
     \\        }
     \\      };
     \\      setTimeout(triggerSrc, 50);
@@ -83,22 +80,11 @@ pub const script: [:0]const u8 =
     \\  var _ael = EventTarget.prototype.addEventListener;
     \\  EventTarget.prototype.addEventListener = function(type, fn, opts) {
     \\    if (type === 'message' && fn && fn.toString().indexOf('widgetMap') !== -1) {
-    \\      window.__tsWrapped = true;
     \\      var origFn = fn;
     \\      var wrapped = function(e) {
-    \\        if (e.data && e.data.source === 'cloudflare-challenge' && e.data.event === 'requestExtraParams') {
-    \\          window.__tsREP = window.__tsREP || [];
-    \\          window.__tsREP.push('entering handler for ' + e.data.widgetId);
-    \\        }
     \\        try {
     \\          origFn.call(this, e);
-    \\        } catch(ex) {
-    \\          window.__tsREP = window.__tsREP || [];
-    \\          window.__tsREP.push('ERROR: ' + ex.message);
-    \\        }
-    \\        if (e.data && e.data.source === 'cloudflare-challenge' && e.data.event === 'requestExtraParams') {
-    \\          window.__tsREP.push('handler returned');
-    \\        }
+    \\        } catch(ex) {}
     \\      };
     \\      return _ael.call(this, type, wrapped, opts);
     \\    }
