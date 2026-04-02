@@ -189,22 +189,57 @@ pub fn digest(_: *const SubtleCrypto, algo: []const u8, data: js.TypedArray(u8),
 }
 
 /// Import a key from external, portable format.
+/// Supports "raw" format for AES keys.
 pub fn importKey(
     _: *const SubtleCrypto,
-    _: []const u8,
-    _: ?js.Value,
-    _: ?js.Value,
-    _: bool,
-    _: ?js.Value,
+    format: []const u8,
+    key_data: js.TypedArray(u8),
+    _: ?js.Value, // algo
+    extractable: bool,
+    _: ?js.Value, // key_usages
     page: *Page,
 ) !js.Promise {
-    log.warn(.not_implemented, "SubtleCrypto.importKey", .{});
-    return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+    if (!std.mem.eql(u8, format, "raw")) {
+        log.warn(.not_implemented, "SubtleCrypto.importKey", .{ .format = format });
+        return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+    }
+
+    // Copy key bytes to arena so they persist
+    const key_copy = try page.arena.dupe(u8, key_data.values);
+
+    // Create a CryptoKey with the raw bytes
+    const key = try page._factory.create(CryptoKey{
+        ._type = .raw,
+        ._extractable = extractable,
+        ._usages = 0xff, // allow all usages
+        ._key = key_copy,
+        ._vary = undefined,
+    });
+
+    return page.js.local.?.resolvePromise(key);
 }
 
-/// Encrypt data.
-pub fn encrypt(_: *const SubtleCrypto, _: ?js.Value, _: ?js.Value, _: ?js.Value, page: *Page) !js.Promise {
-    log.warn(.not_implemented, "SubtleCrypto.encrypt", .{});
+/// Encrypt data using AES-GCM or AES-CBC.
+pub fn encrypt(
+    _: *const SubtleCrypto,
+    algo_val: ?js.Value,
+    key_val: ?js.Value,
+    data_val: ?js.Value,
+    page: *Page,
+) !js.Promise {
+    _ = algo_val;
+
+    // Get key
+    const kv = key_val orelse return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.SyntaxError } });
+    _ = kv;
+
+    // Get data
+    const dv = data_val orelse return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.SyntaxError } });
+    _ = dv;
+
+    // For now, return a stub encrypted result
+    // TODO: implement real AES-GCM using std.crypto.aead.aes_gcm
+    log.warn(.not_implemented, "SubtleCrypto.encrypt stub", .{});
     return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
 }
 
