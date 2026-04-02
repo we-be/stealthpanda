@@ -46,5 +46,20 @@ pub const script: [:0]const u8 =
     \\  // but should exist in extensions
     \\}
     \\
-    \\// 5. Let Turnstile handle everything naturally — no blocking, no force render
+    \\// 5. Block unsupported_browser reject in PARENT and IFRAME contexts
+    \\window.addEventListener('message', function(e) {
+    \\  if (e.data && e.data.source === 'cloudflare-challenge' &&
+    \\      e.data.event === 'reject' && e.data.reason === 'unsupported_browser') {
+    \\    e.stopImmediatePropagation();
+    \\  }
+    \\}, true);
+    \\if (window.parent && window.parent !== window) {
+    \\  try {
+    \\    var _opm = window.parent.postMessage;
+    \\    window.parent.postMessage = function(msg, o) {
+    \\      if (msg && msg.event === 'reject' && msg.reason === 'unsupported_browser') return;
+    \\      return _opm.apply(this, arguments);
+    \\    };
+    \\  } catch(e) {}
+    \\}
 ;
