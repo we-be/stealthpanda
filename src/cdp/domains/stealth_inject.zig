@@ -58,17 +58,21 @@ pub const script: [:0]const u8 =
     \\      var iframe = this;
     \\      // Defer with multiple delays to ensure shadow host is connected
     \\      var triggered = false;
+    \\      window.__iframeDebug = window.__iframeDebug || [];
     \\      var triggerSrc = function() {
     \\        if (triggered) return;
-    \\        if (iframe.isConnected && !iframe.contentWindow) {
+    \\        var alive = !!iframe;
+    \\        var connected = alive && iframe.isConnected;
+    \\        var hasSrc = alive && iframe.getAttribute('src');
+    \\        var srcProp = alive && typeof Object.getOwnPropertyDescriptor(Object.getPrototypeOf(iframe), 'src');
+    \\        window.__iframeDebug.push('alive:'+alive+' c:'+connected+' srcDesc:'+srcProp+' tag:'+iframe?.tagName);
+    \\        if (connected) {
     \\          triggered = true;
-    \\          try { iframe.src = iframe.getAttribute('src'); } catch(e) {}
+    \\          try { iframe.src = hasSrc + '#t'; } catch(e) { window.__iframeDebug.push('err:'+e.message); }
     \\        }
     \\      };
-    \\      setTimeout(triggerSrc, 0);
     \\      setTimeout(triggerSrc, 50);
-    \\      setTimeout(triggerSrc, 200);
-    \\      setTimeout(triggerSrc, 1000);
+    \\      setTimeout(triggerSrc, 500);
     \\    }
     \\    return result;
     \\  };
