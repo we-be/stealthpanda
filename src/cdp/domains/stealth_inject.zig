@@ -46,7 +46,15 @@ pub const script: [:0]const u8 =
     \\  // but should exist in extensions
     \\}
     \\
-    \\// 5. Block unsupported_browser reject messages from Turnstile challenge iframes
+    \\// 5. Block unsupported_browser reject in PARENT window (capture phase, runs before Turnstile)
+    \\window.addEventListener('message', function(e) {
+    \\  if (e.data && e.data.source === 'cloudflare-challenge' &&
+    \\      e.data.event === 'reject' && e.data.reason === 'unsupported_browser') {
+    \\    e.stopImmediatePropagation();
+    \\  }
+    \\}, true);
+    \\
+    \\// 6. Block unsupported_browser reject messages from Turnstile challenge iframes
     \\// The challenge script in the iframe sends {event:"reject",reason:"unsupported_browser"}
     \\// via parent.postMessage when it detects missing features. Block this to prevent
     \\// widget cleanup that destroys the working challenge flow.
