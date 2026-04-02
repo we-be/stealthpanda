@@ -247,9 +247,9 @@ pub const JsApi = struct {
     // resolution for DocumentFragment/ShadowRoot may not reach Node's appendChild.
     // Without this, shadowRoot.appendChild() silently succeeds in V8 without
     // calling the Zig Node.appendChild, leaving iframes unprocessed.
-    pub const appendChild = bridge.function(_appendChild, .{ .dom_exception = true });
-    fn _appendChild(self: *DocumentFragment, child: *Node, page: *Page) !*Node {
-        return self.asNode().appendChild(child, page);
+    pub const appendChild = bridge.function(_appendChild, .{});
+    fn _appendChild(self: *DocumentFragment, child: *Node, page: *Page) *Node {
+        return self.asNode().appendChild(child, page) catch child;
     }
     pub const innerHTML = bridge.accessor(_innerHTML, DocumentFragment.setInnerHTML, .{});
 
