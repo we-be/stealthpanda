@@ -65,13 +65,23 @@ pub const script: [:0]const u8 =
     \\  };
     \\})();
     \\
-    \\// 6. Monitor for errors in the Turnstile message handler
-    \\window.addEventListener('message', function(e) {
-    \\  if (e.data && e.data.source === 'cloudflare-challenge' && e.data.event === 'requestExtraParams') {
-    \\    window.__repDebug = window.__repDebug || [];
-    \\    window.__repDebug.push('wid:' + e.data.widgetId);
-    \\  }
-    \\});
+    \\// 6. Wrap addEventListener to catch errors in Turnstile handler
+    \\(function() {
+    \\  var _ael = window.addEventListener;
+    \\  window.addEventListener = function(type, fn, opts) {
+    \\    if (type === 'message') {
+    \\      // Large message handler = likely Turnstile
+    \\      var wrapped = function(e) {
+    \\        try { fn.call(this, e); } catch(ex) {
+    \\          window.__tsHandlerErr = window.__tsHandlerErr || [];
+    \\          window.__tsHandlerErr.push(ex.message + ' ' + (ex.stack || '').substring(0, 200));
+    \\        }
+    \\      };
+    \\      return _ael.call(this, type, wrapped, opts);
+    \\    }
+    \\    return _ael.call(this, type, fn, opts);
+    \\  };
+    \\})();
     \\
     \\// 7. Block unsupported_browser reject in PARENT and IFRAME contexts
     \\window.addEventListener('message', function(e) {
