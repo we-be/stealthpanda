@@ -66,7 +66,40 @@ pub const script: [:0]const u8 =
     \\  setTimeout(function() { clearInterval(checkInterval); }, 30000);
     \\})();
     \\
-    \\// 6. Block unsupported_browser reject in PARENT window (capture phase, runs before Turnstile)
+    \\// 6. Respond to requestExtraParams when Turnstile can't find the iframe
+    \\// The Turnstile parent code's handler fails to find the iframe via shadow DOM querySelector.
+    \\// We intercept the message and respond with extraParams using the iframe's contentWindow.
+    \\window.addEventListener('message', function(e) {
+    \\  if (!e.data || e.data.source !== 'cloudflare-challenge' || e.data.event !== 'requestExtraParams') return;
+    \\  // Find any iframe whose contentWindow matches e.source
+    \\  var iframes = document.querySelectorAll('iframe');
+    \\  var target = null;
+    \\  for (var i = 0; i < iframes.length; i++) {
+    \\    if (iframes[i].contentWindow) { target = iframes[i]; break; }
+    \\  }
+    \\  if (!target || !target.contentWindow) return;
+    \\  // Build extraParams response matching Turnstile's expected format
+    \\  try {
+    \\    target.contentWindow.postMessage({
+    \\      source: 'cloudflare-challenge',
+    \\      widgetId: e.data.widgetId,
+    \\      event: 'extraParams',
+    \\      url: location.href,
+    \\      origin: location.origin,
+    \\      sitekey: document.querySelector('.cf-turnstile')?.getAttribute('data-sitekey') || '',
+    \\      execution: 'render',
+    \\      language: 'auto',
+    \\      appearance: 'always',
+    \\      retry: 'auto',
+    \\      'retry-interval': 8000,
+    \\      'refresh-expired': 'auto',
+    \\      'refresh-timeout': 'auto',
+    \\      'expiry-interval': 300000,
+    \\    }, '*');
+    \\  } catch(ex) {}
+    \\});
+    \\
+    \\// 7. Block unsupported_browser reject in PARENT window (capture phase, runs before Turnstile)
     \\window.addEventListener('message', function(e) {
     \\  if (e.data && e.data.source === 'cloudflare-challenge' &&
     \\      e.data.event === 'reject' && e.data.reason === 'unsupported_browser') {
