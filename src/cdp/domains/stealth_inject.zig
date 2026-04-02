@@ -65,16 +65,17 @@ pub const script: [:0]const u8 =
     \\  };
     \\})();
     \\
-    \\// 6. Wrap addEventListener to catch errors in Turnstile handler
+    \\// 6. Wrap addEventListener to log Turnstile handler internals
     \\(function() {
-    \\  var _ael = window.addEventListener;
-    \\  window.addEventListener = function(type, fn, opts) {
-    \\    if (type === 'message') {
-    \\      // Large message handler = likely Turnstile
+    \\  var _ael = EventTarget.prototype.addEventListener;
+    \\  EventTarget.prototype.addEventListener = function(type, fn, opts) {
+    \\    if (type === 'message' && fn && fn.toString().indexOf('widgetMap') !== -1) {
+    \\      // This IS the Turnstile handler
+    \\      window.__tsWrapped = true;
     \\      var wrapped = function(e) {
     \\        try { fn.call(this, e); } catch(ex) {
     \\          window.__tsHandlerErr = window.__tsHandlerErr || [];
-    \\          window.__tsHandlerErr.push(ex.message + ' ' + (ex.stack || '').substring(0, 200));
+    \\          window.__tsHandlerErr.push(ex.message + ' ' + (ex.stack || '').substring(0, 300));
     \\        }
     \\      };
     \\      return _ael.call(this, type, wrapped, opts);
