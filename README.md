@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/logo.png" alt="StealthPanda" height="200">
+<img src="assets/logo.png" alt="StealthPanda" height="300">
 
 # StealthPanda
 
