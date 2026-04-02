@@ -24,6 +24,7 @@ pub const JsApi = struct {
         pub const name = "Chrome";
         pub const prototype_chain = bridge.prototypeChain();
         pub var class_id: bridge.ClassId = undefined;
+        pub const enumerable = false;
     };
 
     pub const runtime = bridge.accessor(Chrome.getRuntime, null, .{});
@@ -42,6 +43,7 @@ pub const ChromeRuntime = struct {
             pub const name = "ChromeRuntime";
             pub const prototype_chain = bridge.prototypeChain();
             pub var class_id: bridge.ClassId = undefined;
+            pub const enumerable = false;
         };
 
         pub const connect = bridge.function(ChromeRuntime.connect, .{});

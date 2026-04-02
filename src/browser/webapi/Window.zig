@@ -1005,6 +1005,7 @@ pub const CrossOriginWindow = struct {
             pub const name = "CrossOriginWindow";
             pub const prototype_chain = bridge.prototypeChain();
             pub var class_id: bridge.ClassId = undefined;
+            pub const enumerable = false;
         };
 
         pub const postMessage = bridge.function(CrossOriginWindow.postMessage, .{});

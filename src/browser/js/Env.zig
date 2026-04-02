@@ -362,6 +362,7 @@ pub fn createContext(self: *Env, page: *Page, params: ContextParams) !*Context {
         context.localScope(&stealth_ls);
         defer stealth_ls.deinit();
         stealth_ls.local.eval(@import("../../cdp/domains/stealth_inject.zig").script, null) catch {};
+        stealth_ls.local.eval(@import("../../cdp/chrome_globals.zig").script, null) catch {};
     }
 
     return context;

@@ -15,6 +15,7 @@ pub const JsApi = struct {
         pub const name = "TextMetrics";
         pub const prototype_chain = bridge.prototypeChain();
         pub var class_id: bridge.ClassId = undefined;
+        pub const enumerable = false;
     };
 
     pub const width = bridge.accessor(getWidth, null, .{});
