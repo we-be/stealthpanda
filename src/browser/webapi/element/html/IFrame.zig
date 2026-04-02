@@ -58,12 +58,11 @@ pub fn setSrc(self: *IFrame, src: []const u8, page: *Page) !void {
     const element = self.asElement();
     try element.setAttributeSafe(comptime .wrap("src"), .wrap(src), page);
     self._src = element.getAttributeSafe(comptime .wrap("src")) orelse unreachable;
-    if (element.asNode().isConnected()) {
-        // unlike script, an iframe is reloaded every time the src is set
-        // even if it's set to the same URL.
-        self._executed = false;
-        try page.iframeAddedCallback(self);
-    }
+    // Always trigger navigation — even for iframes in detached shadow DOMs.
+    // Turnstile creates iframes inside closed shadow roots and sets src
+    // before attaching the shadow host to the document.
+    self._executed = false;
+    try page.iframeAddedCallback(self);
 }
 
 pub fn getName(self: *IFrame) []const u8 {
@@ -103,12 +102,10 @@ pub const Build = struct {
         if (!name.eql(comptime .wrap("src"))) return;
         const self = element.as(IFrame);
         const new_src = element.getAttributeSafe(comptime .wrap("src")) orelse "";
-        // Only navigate if src actually changed
         if (std.mem.eql(u8, new_src, self._src)) return;
         self._src = new_src;
-        if (element.asNode().isConnected()) {
-            self._executed = false;
-            try page.iframeAddedCallback(self);
-        }
+        // Always trigger — even for detached shadow DOM iframes
+        self._executed = false;
+        try page.iframeAddedCallback(self);
     }
 };
