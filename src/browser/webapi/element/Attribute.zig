@@ -223,10 +223,11 @@ pub const List = struct {
         }
 
         if (is_id) {
-            const parent = element.asNode()._parent orelse {
-                return entry;
-            };
-            try page.addElementId(parent, element, entry._value.str());
+            if (element.asNode()._parent) |parent| {
+                try page.addElementId(parent, element, entry._value.str());
+            }
+            // Don't return early — attributeChange must fire even for
+            // parentless elements (e.g., iframes in V8-only shadow DOMs)
         }
         page.domChanged();
         page.attributeChange(element, result.normalized, entry._value, old_value);
