@@ -1,8 +1,6 @@
 <div align="center">
 
-<!-- <img src="assets/logo.png" alt="StealthPanda" height="160"> -->
-
-# StealthPanda
+<img src="assets/logo.png" alt="StealthPanda" height="200">
 
 **Make Lightpanda invisible to anti-bot detection.**
 
