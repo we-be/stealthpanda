@@ -10,6 +10,7 @@ pub fn registerTypes() []const type {
 
 const Chrome = @This();
 
+_pad: bool = false, // Padding so _runtime has a different address than Chrome itself
 _runtime: ChromeRuntime = .{},
 
 pub fn getRuntime(self: *Chrome) *ChromeRuntime {
@@ -32,6 +33,7 @@ pub const ChromeRuntime = struct {
     _pad: bool = false,
 
     pub fn connect(_: *const ChromeRuntime) void {}
+    pub fn sendMessage(_: *const ChromeRuntime) void {}
 
     pub const JsApi = struct {
         pub const bridge = js.Bridge(ChromeRuntime);
@@ -42,6 +44,7 @@ pub const ChromeRuntime = struct {
             pub var class_id: bridge.ClassId = undefined;
         };
 
-        pub const connect = bridge.function(ChromeRuntime.connect, .{ .noop = true });
+        pub const connect = bridge.function(ChromeRuntime.connect, .{});
+        pub const sendMessage = bridge.function(ChromeRuntime.sendMessage, .{});
     };
 };
