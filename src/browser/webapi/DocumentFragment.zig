@@ -247,9 +247,26 @@ pub const JsApi = struct {
     // resolution for DocumentFragment/ShadowRoot may not reach Node's appendChild.
     // Without this, shadowRoot.appendChild() silently succeeds in V8 without
     // calling the Zig Node.appendChild, leaving iframes unprocessed.
+    // Node methods must be explicitly defined here because V8's prototype
+    // chain resolution may not reach Node's methods for DocumentFragment/ShadowRoot.
     pub const appendChild = bridge.function(_appendChild, .{});
     fn _appendChild(self: *DocumentFragment, child: *Node, page: *Page) *Node {
         return self.asNode().appendChild(child, page) catch child;
+    }
+
+    pub const insertBefore = bridge.function(_insertBefore, .{ .dom_exception = true });
+    fn _insertBefore(self: *DocumentFragment, new_node: *Node, ref_node: ?*Node, page: *Page) !*Node {
+        return self.asNode().insertBefore(new_node, ref_node, page);
+    }
+
+    pub const removeChild = bridge.function(_removeChild, .{ .dom_exception = true });
+    fn _removeChild(self: *DocumentFragment, child: *Node, page: *Page) !*Node {
+        return self.asNode().removeChild(child, page);
+    }
+
+    pub const replaceChild = bridge.function(_replaceChild, .{ .dom_exception = true });
+    fn _replaceChild(self: *DocumentFragment, new_child: *Node, old_child: *Node, page: *Page) !*Node {
+        return self.asNode().replaceChild(new_child, old_child, page);
     }
     pub const innerHTML = bridge.accessor(_innerHTML, DocumentFragment.setInnerHTML, .{});
 
