@@ -82,9 +82,15 @@ pub const script: [:0]const u8 =
     \\      };
     \\    }
     \\    if (e.data.event !== 'requestExtraParams') return;
+    \\    window.__spDebug = window.__spDebug || [];
     \\    var cached = widgetSources[e.data.widgetId];
-    \\    if (!cached || !cached.source) return;
+    \\    if (!cached || !cached.source) {
+    \\      window.__spDebug.push('no-cache:' + e.data.widgetId + ' known:' + Object.keys(widgetSources).join(','));
+    \\      return;
+    \\    }
+    \\    window.__spDebug.push('MATCH-v2:' + e.data.widgetId);
     \\    try {
+    \\      window.__spDebug.push('BEFORE-PM-v2');
     \\      cached.source.postMessage({
     \\        source: 'cloudflare-challenge',
     \\        widgetId: e.data.widgetId,
@@ -103,7 +109,8 @@ pub const script: [:0]const u8 =
     \\        rcV: cached.rcV,
     \\        turnstileType: 'm',
     \\      }, '*');
-    \\    } catch(ex) {}
+    \\      window.__spDebug.push('pm-sent');
+    \\    } catch(ex) { window.__spDebug.push('err:' + ex.message + ' ' + ex.stack?.substring(0,100)); }
     \\  });
     \\})();
     \\
