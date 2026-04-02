@@ -2868,18 +2868,41 @@ pub fn attributeChange(self: *Page, element: *Element, name: String, value: Stri
 
     // Direct iframe src handling — bypasses Build dispatch which may fail
     // due to V8 template inheritance issues with element type resolution.
-    // Only trigger if the iframe is connected or has a parent (is in a tree).
     if (name.eql(comptime .wrap("src"))) {
         if (element.asNode().is(IFrame)) |iframe| {
             const new_src = element.getAttributeSafe(comptime .wrap("src")) orelse "";
             if (!std.mem.eql(u8, new_src, iframe._src)) {
                 iframe._src = new_src;
-                if (new_src.len > 0) {
+                if (new_src.len > 0 and iframe._window == null) {
                     iframe._executed = false;
                     self.iframeAddedCallback(iframe) catch |err| {
                         log.err(.app, "iframe src handler err", .{ .err = err });
                     };
                 }
+            }
+        }
+    }
+
+    // Sync iframe to shadow root DOM tree if V8 added it without Zig knowing.
+    // V8's native appendChild bypasses Zig, so the iframe exists in V8's DOM
+    // but not in Zig's. When we detect an iframe's ID being set and it has a
+    // Window (created by the src handler above), add it to its shadow root
+    // parent in Zig's DOM tree so querySelector can find it.
+    if (name.eql(comptime .wrap("id"))) {
+        if (element.asNode().is(IFrame)) |iframe| {
+            if (iframe._window != null and element.asNode()._parent == null) {
+                // Iframe has a window but no Zig parent — V8 added it to a shadow root.
+                // Find the shadow root by checking page's shadow root map.
+                var sr_iter = self._element_shadow_roots.iterator();
+                while (sr_iter.next()) |entry| {
+                    const sr = entry.value_ptr.*;
+                    const sr_node = sr.asDocumentFragment().asNode();
+                    // Add the iframe as a child of this shadow root in Zig's DOM tree
+                    if (sr_node.firstChild() == null) {
+                        self.appendNode(sr_node, element.asNode(), .{}) catch {};
+                        break;
+                    }
+                } // while sr_iter
             }
         }
     }
