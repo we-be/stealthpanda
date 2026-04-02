@@ -46,7 +46,37 @@ pub const script: [:0]const u8 =
     \\  // but should exist in extensions
     \\}
     \\
-    \\// 5. Deferred iframe.src trigger for shadow DOM iframes
+    \\// 5. Use MutationObserver to detect iframes added to shadow DOMs
+    \\// V8's template system bypasses our Zig Node.appendChild for shadow roots.
+    \\// We use JS-level MutationObserver on shadow roots to trigger iframe.src
+    \\// assignment when iframes are added, which goes through the bridge.
+    \\(function() {
+    \\  var _attachShadow = Element.prototype.attachShadow;
+    \\  Element.prototype.attachShadow = function(opts) {
+    \\    var sr = _attachShadow.call(this, opts);
+    \\    // Watch for iframe additions to this shadow root
+    \\    try {
+    \\      var obs = new MutationObserver(function(mutations) {
+    \\        for (var i = 0; i < mutations.length; i++) {
+    \\          var added = mutations[i].addedNodes;
+    \\          for (var j = 0; j < added.length; j++) {
+    \\            var node = added[j];
+    \\            if (node.tagName === 'IFRAME' && node.getAttribute('src')) {
+    \\              // Trigger the .src setter which goes through Zig bridge
+    \\              setTimeout(function() {
+    \\                try { node.src = node.getAttribute('src'); } catch(e) {}
+    \\              }, 0);
+    \\            }
+    \\          }
+    \\        }
+    \\      });
+    \\      obs.observe(sr, { childList: true });
+    \\    } catch(e) {}
+    \\    return sr;
+    \\  };
+    \\})();
+    \\
+    \\// 5b. Deferred iframe.src trigger for shadow DOM iframes
     \\// When an iframe's src is set via setAttribute while it's in a detached
     \\// shadow DOM, defer the .src property assignment until the next microtask
     \\// (by which time the shadow host should be connected to the document).
