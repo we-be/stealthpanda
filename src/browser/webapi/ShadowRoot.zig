@@ -125,6 +125,23 @@ pub const JsApi = struct {
 
     pub const mode = bridge.accessor(ShadowRoot.getMode, null, .{});
     pub const host = bridge.accessor(ShadowRoot.getHost, null, .{});
+
+    // Node mutation methods must be explicitly defined because V8's template
+    // prototype chain doesn't inherit them from Node for ShadowRoot instances.
+    pub const appendChild = bridge.function(_appendChild, .{});
+    fn _appendChild(self: *ShadowRoot, child: *Node, page: *Page) *Node {
+        return self.asDocumentFragment().asNode().appendChild(child, page) catch child;
+    }
+
+    pub const insertBefore = bridge.function(_srInsertBefore, .{ .dom_exception = true });
+    fn _srInsertBefore(self: *ShadowRoot, new_node: *Node, ref_node: ?*Node, page: *Page) !*Node {
+        return self.asDocumentFragment().asNode().insertBefore(new_node, ref_node, page);
+    }
+
+    pub const removeChild = bridge.function(_srRemoveChild, .{ .dom_exception = true });
+    fn _srRemoveChild(self: *ShadowRoot, child: *Node, page: *Page) !*Node {
+        return self.asDocumentFragment().asNode().removeChild(child, page);
+    }
     pub const getElementById = bridge.function(_getElementById, .{});
     fn _getElementById(self: *ShadowRoot, value_: ?js.Value, page: *Page) !?*Element {
         const value = value_ orelse return null;
