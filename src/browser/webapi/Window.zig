@@ -455,7 +455,9 @@ pub fn postMessage(self: *Window, message: js.Value.Temp, target_origin: ?[]cons
     errdefer target_page.releaseArena(arena);
 
     // Origin should be the source window's origin (where the message came from)
-    const origin = try source_window._location.getOrigin(page);
+    // Use page.origin if available (set during navigation), falling back to location
+    const source_page = source_window._page;
+    const origin = source_page.origin orelse try source_window._location.getOrigin(page);
     const callback = try arena.create(PostMessageCallback);
     callback.* = .{
         .arena = arena,
