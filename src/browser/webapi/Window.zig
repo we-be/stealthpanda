@@ -448,16 +448,21 @@ pub fn postMessage(self: *Window, message: js.Value.Temp, target_origin: ?[]cons
     // page = the page of the *target* context (self's page), NOT the caller
     // We need the caller's window, which is the incumbent context's window
     const target_page = self._page;
-    log.warn(.app, "PM", .{ .to = if (target_page.url.len > 50) target_page.url[0..50] else target_page.url });
-    const source_window = target_page.js.getIncumbent().window;
+    const incumbent_page = target_page.js.getIncumbent();
+    const source_window = incumbent_page.window;
 
     const arena = try target_page.getArena(.{ .debug = "Window.postMessage" });
     errdefer target_page.releaseArena(arena);
 
-    // Origin should be the source window's origin (where the message came from)
-    // Use page.origin if available (set during navigation), falling back to location
-    const source_page = source_window._page;
-    const origin = source_page.origin orelse try source_window._location.getOrigin(page);
+    // Origin = the source window's page origin.
+    // For cross-context calls (iframe → parent), source_window is the caller.
+    // Use the source page's URL-derived origin for correctness.
+    const origin = blk: {
+        // Try source_window's page origin first (set during navigation)
+        if (source_window._page.origin) |o| break :blk o;
+        // Fallback to location origin
+        break :blk try source_window._location.getOrigin(page);
+    };
     const callback = try arena.create(PostMessageCallback);
     callback.* = .{
         .arena = arena,
