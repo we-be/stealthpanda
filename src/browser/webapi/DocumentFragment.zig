@@ -242,6 +242,15 @@ pub const JsApi = struct {
     pub const append = bridge.function(DocumentFragment.append, .{ .dom_exception = true });
     pub const prepend = bridge.function(DocumentFragment.prepend, .{ .dom_exception = true });
     pub const replaceChildren = bridge.function(DocumentFragment.replaceChildren, .{ .dom_exception = true });
+
+    // appendChild must be explicitly defined here because V8's prototype chain
+    // resolution for DocumentFragment/ShadowRoot may not reach Node's appendChild.
+    // Without this, shadowRoot.appendChild() silently succeeds in V8 without
+    // calling the Zig Node.appendChild, leaving iframes unprocessed.
+    pub const appendChild = bridge.function(_appendChild, .{ .dom_exception = true });
+    fn _appendChild(self: *DocumentFragment, child: *Node, page: *Page) !*Node {
+        return self.asNode().appendChild(child, page);
+    }
     pub const innerHTML = bridge.accessor(_innerHTML, DocumentFragment.setInnerHTML, .{});
 
     fn _innerHTML(self: *DocumentFragment, page: *Page) ![]const u8 {
