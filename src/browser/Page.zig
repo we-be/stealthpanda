@@ -2808,6 +2808,15 @@ pub fn _insertNodeRelative(self: *Page, comptime from_parser: bool, parent: *Nod
                     try self.addElementId(parent, el, id);
                 }
                 try Element.Html.Custom.invokeConnectedCallbackOnElement(true, el, self);
+
+                // Process shadow root children (e.g., iframes in closed shadow DOM)
+                if (self._element_shadow_roots.get(el)) |shadow_root| {
+                    var shadow_child = shadow_root.asDocumentFragment().asNode().firstChild();
+                    while (shadow_child) |sc| {
+                        try self.nodeIsReady(false, sc);
+                        shadow_child = sc.nextSibling();
+                    }
+                }
             }
         }
         return;
