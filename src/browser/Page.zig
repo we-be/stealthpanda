@@ -2876,7 +2876,9 @@ pub fn attributeChange(self: *Page, element: *Element, name: String, value: Stri
                 iframe._src = new_src;
                 if (new_src.len > 0) {
                     iframe._executed = false;
-                    self.iframeAddedCallback(iframe) catch {};
+                    self.iframeAddedCallback(iframe) catch |err| {
+                        log.err(.app, "iframe src handler err", .{ .err = err });
+                    };
                 }
             }
         }
