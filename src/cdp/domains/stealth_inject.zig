@@ -68,4 +68,78 @@ pub const script: [:0]const u8 =
     \\    e.stopImmediatePropagation();
     \\  }
     \\}, true);
+    \\
+    // Worker polyfill for managed challenge POW
+    // CF creates Workers from Blob URLs for proof-of-work computation.
+    // This polyfill runs worker code inline on the main thread.
+    \\(function() {
+    \\  var _origBlob = window.Blob;
+    \\  window.Blob = function(parts, options) {
+    \\    return new _origBlob(parts, options);
+    \\  };
+    \\  window.Blob.prototype = _origBlob.prototype;
+    \\  var _origWorker = window.Worker;
+    \\  window.Worker = function(url) {
+    \\    var _code = null, _msgHandler = null;
+    \\    var worker = {
+    \\      onmessage: null, onerror: null,
+    \\      _listeners: {},
+    \\      postMessage: function(data) {
+    \\        if (!_code) { setTimeout(function() { worker.postMessage(data); }, 50); return; }
+    \\        try {
+    \\          var scope = { postMessage: function(msg) {
+    \\            setTimeout(function() {
+    \\              var ev = new MessageEvent('message', {data: msg});
+    \\              if (worker.onmessage) worker.onmessage(ev);
+    \\              (worker._listeners['message'] || []).forEach(function(fn) { fn(ev); });
+    \\            }, 1);
+    \\          }, addEventListener: function(t, fn) { if (t === 'message') _msgHandler = fn; },
+    \\          removeEventListener: function() {}, close: function() {},
+    \\          importScripts: function() {},
+    \\          crypto: window.crypto, performance: window.performance,
+    \\          Math: Math, Uint8Array: Uint8Array, Uint32Array: Uint32Array,
+    \\          Int32Array: Int32Array, Float64Array: Float64Array,
+    \\          ArrayBuffer: ArrayBuffer, DataView: DataView,
+    \\          TextEncoder: TextEncoder, TextDecoder: TextDecoder,
+    \\          atob: window.atob, btoa: window.btoa,
+    \\          console: console, setTimeout: setTimeout, setInterval: setInterval,
+    \\          clearTimeout: clearTimeout, clearInterval: clearInterval };
+    \\          scope.self = scope; scope.globalThis = scope;
+    \\          var fn = new Function('self','postMessage','addEventListener',
+    \\            'removeEventListener','close','importScripts',
+    \\            'crypto','performance','Math',
+    \\            'Uint8Array','Uint32Array','Int32Array','Float64Array',
+    \\            'ArrayBuffer','DataView','TextEncoder','TextDecoder',
+    \\            'atob','btoa','console','setTimeout','setInterval',
+    \\            'clearTimeout','clearInterval','globalThis', _code);
+    \\          fn(scope,scope.postMessage,scope.addEventListener,
+    \\            scope.removeEventListener,scope.close,scope.importScripts,
+    \\            window.crypto,window.performance,Math,
+    \\            Uint8Array,Uint32Array,Int32Array,Float64Array,
+    \\            ArrayBuffer,DataView,TextEncoder,TextDecoder,
+    \\            window.atob,window.btoa,console,setTimeout,setInterval,
+    \\            clearTimeout,clearInterval,scope);
+    \\          if (_msgHandler) _msgHandler(new MessageEvent('message', {data: data}));
+    \\        } catch(e) {
+    \\          if (worker.onerror) worker.onerror({message: e.message, error: e});
+    \\        }
+    \\      },
+    \\      terminate: function() {},
+    \\      addEventListener: function(type, fn) {
+    \\        if (!worker._listeners[type]) worker._listeners[type] = [];
+    \\        worker._listeners[type].push(fn);
+    \\      },
+    \\      removeEventListener: function(type, fn) {
+    \\        var list = worker._listeners[type];
+    \\        if (list) worker._listeners[type] = list.filter(function(f) { return f !== fn; });
+    \\      }
+    \\    };
+    \\    if (typeof url === 'string' && url.startsWith('blob:')) {
+    \\      fetch(url).then(function(r) { return r.text(); }).then(function(code) {
+    \\        _code = code;
+    \\      }).catch(function() {});
+    \\    }
+    \\    return worker;
+    \\  };
+    \\})();
 ;
