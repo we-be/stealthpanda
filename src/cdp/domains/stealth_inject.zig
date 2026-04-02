@@ -67,37 +67,43 @@ pub const script: [:0]const u8 =
     \\})();
     \\
     \\// 6. Respond to requestExtraParams when Turnstile can't find the iframe
-    \\// The Turnstile parent code's handler fails to find the iframe via shadow DOM querySelector.
-    \\// We intercept the message and respond with extraParams using the iframe's contentWindow.
-    \\window.addEventListener('message', function(e) {
-    \\  if (!e.data || e.data.source !== 'cloudflare-challenge' || e.data.event !== 'requestExtraParams') return;
-    \\  // Find any iframe whose contentWindow matches e.source
-    \\  var iframes = document.querySelectorAll('iframe');
-    \\  var target = null;
-    \\  for (var i = 0; i < iframes.length; i++) {
-    \\    if (iframes[i].contentWindow) { target = iframes[i]; break; }
-    \\  }
-    \\  if (!target || !target.contentWindow) return;
-    \\  // Build extraParams response matching Turnstile's expected format
-    \\  try {
-    \\    target.contentWindow.postMessage({
-    \\      source: 'cloudflare-challenge',
-    \\      widgetId: e.data.widgetId,
-    \\      event: 'extraParams',
-    \\      url: location.href,
-    \\      origin: location.origin,
-    \\      sitekey: document.querySelector('.cf-turnstile')?.getAttribute('data-sitekey') || '',
-    \\      execution: 'render',
-    \\      language: 'auto',
-    \\      appearance: 'always',
-    \\      retry: 'auto',
-    \\      'retry-interval': 8000,
-    \\      'refresh-expired': 'auto',
-    \\      'refresh-timeout': 'auto',
-    \\      'expiry-interval': 300000,
-    \\    }, '*');
-    \\  } catch(ex) {}
-    \\});
+    \\// Capture rcV from init messages and pass it back in extraParams response.
+    \\(function() {
+    \\  var widgetData = {};
+    \\  window.addEventListener('message', function(e) {
+    \\    if (!e.data || e.data.source !== 'cloudflare-challenge') return;
+    \\    if (e.data.event === 'init' && e.data.nextRcV) {
+    \\      widgetData[e.data.widgetId] = { rcV: e.data.nextRcV, mode: e.data.mode };
+    \\    }
+    \\    if (e.data.event !== 'requestExtraParams') return;
+    \\    var iframes = document.querySelectorAll('iframe');
+    \\    for (var i = 0; i < iframes.length; i++) {
+    \\      if (!iframes[i].contentWindow) continue;
+    \\      try {
+    \\        var wd = widgetData[e.data.widgetId] || {};
+    \\        iframes[i].contentWindow.postMessage({
+    \\          source: 'cloudflare-challenge',
+    \\          widgetId: e.data.widgetId,
+    \\          event: 'extraParams',
+    \\          url: location.href,
+    \\          origin: location.origin,
+    \\          sitekey: document.querySelector('.cf-turnstile')?.getAttribute('data-sitekey') || '',
+    \\          execution: 'render',
+    \\          language: 'auto',
+    \\          appearance: 'always',
+    \\          retry: 'auto',
+    \\          'retry-interval': 8000,
+    \\          'refresh-expired': 'auto',
+    \\          'refresh-timeout': 'auto',
+    \\          'expiry-interval': 300000,
+    \\          rcV: wd.rcV || '',
+    \\          turnstileType: 'm',
+    \\        }, '*');
+    \\      } catch(ex) {}
+    \\      break;
+    \\    }
+    \\  });
+    \\})();
     \\
     \\// 7. Block unsupported_browser reject in PARENT window (capture phase, runs before Turnstile)
     \\window.addEventListener('message', function(e) {
