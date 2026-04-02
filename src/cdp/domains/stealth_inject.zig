@@ -46,7 +46,27 @@ pub const script: [:0]const u8 =
     \\  // but should exist in extensions
     \\}
     \\
-    \\// 5. Block unsupported_browser reject in PARENT window (capture phase, runs before Turnstile)
+    \\// 5. Force Turnstile implicit render after it loads
+    \\// The Turnstile API uses setTimeout(Ar, 0) to trigger ready callbacks,
+    \\// but the callback sometimes doesn't fire. Poll for turnstile and force render.
+    \\(function() {
+    \\  var checkInterval = setInterval(function() {
+    \\    if (typeof turnstile !== 'undefined' && turnstile.render) {
+    \\      clearInterval(checkInterval);
+    \\      var els = document.querySelectorAll('.cf-turnstile[data-sitekey]');
+    \\      for (var i = 0; i < els.length; i++) {
+    \\        if (!els[i].dataset.rendered) {
+    \\          els[i].dataset.rendered = '1';
+    \\          turnstile.render(els[i]);
+    \\        }
+    \\      }
+    \\    }
+    \\  }, 100);
+    \\  // Stop polling after 30s
+    \\  setTimeout(function() { clearInterval(checkInterval); }, 30000);
+    \\})();
+    \\
+    \\// 6. Block unsupported_browser reject in PARENT window (capture phase, runs before Turnstile)
     \\window.addEventListener('message', function(e) {
     \\  if (e.data && e.data.source === 'cloudflare-challenge' &&
     \\      e.data.event === 'reject' && e.data.reason === 'unsupported_browser') {
