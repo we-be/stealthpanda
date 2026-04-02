@@ -45,6 +45,7 @@ const CSSStyleProperties = @import("css/CSSStyleProperties.zig");
 const CustomElementRegistry = @import("CustomElementRegistry.zig");
 const Selection = @import("Selection.zig");
 const Chrome = @import("Chrome.zig");
+const SpeechSynthesis = @import("SpeechSynthesis.zig");
 
 const IS_DEBUG = builtin.mode == .Debug;
 
@@ -64,6 +65,7 @@ _crypto: Crypto = .init,
 _console: Console = .init,
 _navigator: Navigator = .init,
 _chrome: Chrome = .{},
+_speech_synthesis: SpeechSynthesis = .{},
 _screen: *Screen,
 _visual_viewport: *VisualViewport,
 _performance: Performance,
@@ -149,6 +151,10 @@ pub fn getNavigator(self: *Window) *Navigator {
 
 pub fn getChrome(self: *Window) *Chrome {
     return &self._chrome;
+}
+
+pub fn getSpeechSynthesis(self: *Window) *SpeechSynthesis {
+    return &self._speech_synthesis;
 }
 
 pub fn getScreen(self: *Window) *Screen {
@@ -950,6 +956,7 @@ pub const JsApi = struct {
     pub const innerWidth = bridge.accessor(Window.getInnerWidth, null, .{});
     pub const innerHeight = bridge.accessor(Window.getInnerHeight, null, .{});
     pub const chrome = bridge.accessor(Window.getChrome, null, .{});
+    pub const speechSynthesis = bridge.accessor(Window.getSpeechSynthesis, null, .{});
     pub const devicePixelRatio = bridge.property(1, .{ .template = false });
 
     // This should return a window-like object in specific conditions. Would be

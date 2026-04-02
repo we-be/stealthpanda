@@ -27,12 +27,14 @@ const Page = @import("../Page.zig");
 const PluginArray = @import("PluginArray.zig");
 const Permissions = @import("Permissions.zig");
 const StorageManager = @import("StorageManager.zig");
+const MediaDevices = @import("MediaDevices.zig");
 
 const Navigator = @This();
 _pad: bool = false,
 _plugins: PluginArray = .{},
 _permissions: Permissions = .{},
 _storage: StorageManager = .{},
+_media_devices: MediaDevices = .{},
 
 pub const init: Navigator = .{};
 
@@ -83,6 +85,10 @@ pub fn getStorage(self: *Navigator) *StorageManager {
 
 pub fn sendBeacon(_: *const Navigator, _: []const u8, _: ?[]const u8) bool {
     return true;
+}
+
+pub fn getMediaDevices(self: *Navigator) *MediaDevices {
+    return &self._media_devices;
 }
 
 pub fn getBattery(_: *const Navigator, page: *Page) !js.Promise {
@@ -196,6 +202,7 @@ pub const JsApi = struct {
     pub const sendBeacon = bridge.function(Navigator.sendBeacon, .{});
     pub const permissions = bridge.accessor(Navigator.getPermissions, null, .{});
     pub const storage = bridge.accessor(Navigator.getStorage, null, .{});
+    pub const mediaDevices = bridge.accessor(Navigator.getMediaDevices, null, .{});
 };
 
 const testing = @import("../../testing.zig");

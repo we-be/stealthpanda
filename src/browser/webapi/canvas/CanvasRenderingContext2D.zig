@@ -16,6 +16,7 @@ const Page = @import("../../Page.zig");
 
 const Canvas = @import("../element/html/Canvas.zig");
 const ImageData = @import("../ImageData.zig");
+const TextMetrics = @import("TextMetrics.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -219,6 +220,13 @@ pub fn fillText(self: *CanvasRenderingContext2D, _: []const u8, x: f64, y: f64, 
     self._surface = sfc;
 }
 pub fn strokeText(_: *CanvasRenderingContext2D, _: []const u8, _: f64, _: f64, _: ?f64) void {}
+
+pub fn measureText(_: *CanvasRenderingContext2D, text: []const u8, page: *Page) !*TextMetrics {
+    // Approximate width: ~6px per character for 10px sans-serif default font
+    const width: f64 = @as(f64, @floatFromInt(text.len)) * 6.0;
+    return page._factory.create(TextMetrics{ ._width = width });
+}
+
 pub fn drawImage(_: *CanvasRenderingContext2D, _: ?*anyopaque, _: f64, _: f64) void {}
 pub fn setLineDash(_: *CanvasRenderingContext2D) void {}
 pub fn isPointInPath(_: *CanvasRenderingContext2D, _: f64, _: f64) bool {
@@ -284,6 +292,7 @@ pub const JsApi = struct {
     pub const clip = bridge.function(CanvasRenderingContext2D.clip, .{ .noop = true });
     pub const fillText = bridge.function(CanvasRenderingContext2D.fillText, .{});
     pub const strokeText = bridge.function(CanvasRenderingContext2D.strokeText, .{ .noop = true });
+    pub const measureText = bridge.function(CanvasRenderingContext2D.measureText, .{});
     pub const drawImage = bridge.function(CanvasRenderingContext2D.drawImage, .{ .noop = true });
     pub const setLineDash = bridge.function(CanvasRenderingContext2D.setLineDash, .{ .noop = true });
     pub const isPointInPath = bridge.function(CanvasRenderingContext2D.isPointInPath, .{});
