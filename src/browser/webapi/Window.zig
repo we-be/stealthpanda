@@ -120,8 +120,16 @@ pub fn getTop(self: *Window, page: *Page) Access {
     return Access.init(page.window, p.window);
 }
 
+/// When an iframe accesses window.parent, save the caller's page
+/// so postMessage can use it for the origin.
+var _last_cross_context_caller: ?*Page = null;
+
 pub fn getParent(self: *Window, page: *Page) Access {
     if (self._page.parent) |p| {
+        // Save the caller's page for postMessage origin resolution
+        if (page != p) {
+            _last_cross_context_caller = page;
+        }
         return Access.init(page.window, p.window);
     }
     return .{ .window = self };
@@ -448,21 +456,17 @@ pub fn postMessage(self: *Window, message: js.Value.Temp, target_origin: ?[]cons
     // page = the page of the *target* context (self's page), NOT the caller
     // We need the caller's window, which is the incumbent context's window
     const target_page = self._page;
-    const incumbent_page = target_page.js.getIncumbent();
-    const source_window = incumbent_page.window;
+    const source_window = target_page.js.getIncumbent().window;
 
     const arena = try target_page.getArena(.{ .debug = "Window.postMessage" });
     errdefer target_page.releaseArena(arena);
 
-    // Origin = the source window's page origin.
-    // For cross-context calls (iframe → parent), source_window is the caller.
-    // Use the source page's URL-derived origin for correctness.
-    const origin = blk: {
-        // Try source_window's page origin first (set during navigation)
-        if (source_window._page.origin) |o| break :blk o;
-        // Fallback to location origin
-        break :blk try source_window._location.getOrigin(page);
-    };
+    // Use the cross-context caller's origin if available (set during getParent/getTop).
+    // This correctly identifies the iframe's origin when the iframe calls
+    // parent.postMessage(), even though getIncumbent() returns the parent context.
+    const caller_page = _last_cross_context_caller orelse source_window._page;
+    _last_cross_context_caller = null; // consume
+    const origin = caller_page.origin orelse try source_window._location.getOrigin(page);
     const callback = try arena.create(PostMessageCallback);
     callback.* = .{
         .arena = arena,
