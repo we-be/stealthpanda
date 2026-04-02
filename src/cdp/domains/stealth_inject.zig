@@ -65,17 +65,26 @@ pub const script: [:0]const u8 =
     \\  };
     \\})();
     \\
-    \\// 6. Wrap addEventListener to log Turnstile handler internals
+    \\// 6. Intercept Turnstile handler to inject logging into requestExtraParams
     \\(function() {
     \\  var _ael = EventTarget.prototype.addEventListener;
     \\  EventTarget.prototype.addEventListener = function(type, fn, opts) {
     \\    if (type === 'message' && fn && fn.toString().indexOf('widgetMap') !== -1) {
-    \\      // This IS the Turnstile handler
     \\      window.__tsWrapped = true;
+    \\      var origFn = fn;
     \\      var wrapped = function(e) {
-    \\        try { fn.call(this, e); } catch(ex) {
-    \\          window.__tsHandlerErr = window.__tsHandlerErr || [];
-    \\          window.__tsHandlerErr.push(ex.message + ' ' + (ex.stack || '').substring(0, 300));
+    \\        if (e.data && e.data.source === 'cloudflare-challenge' && e.data.event === 'requestExtraParams') {
+    \\          window.__tsREP = window.__tsREP || [];
+    \\          window.__tsREP.push('entering handler for ' + e.data.widgetId);
+    \\        }
+    \\        try {
+    \\          origFn.call(this, e);
+    \\        } catch(ex) {
+    \\          window.__tsREP = window.__tsREP || [];
+    \\          window.__tsREP.push('ERROR: ' + ex.message);
+    \\        }
+    \\        if (e.data && e.data.source === 'cloudflare-challenge' && e.data.event === 'requestExtraParams') {
+    \\          window.__tsREP.push('handler returned');
     \\        }
     \\      };
     \\      return _ael.call(this, type, wrapped, opts);
