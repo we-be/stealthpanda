@@ -898,6 +898,7 @@ pub const JsApi = struct {
     pub const window = bridge.accessor(Window.getWindow, null, .{});
     pub const parent = bridge.accessor(Window.getParent, null, .{});
     pub const navigator = bridge.accessor(Window.getNavigator, null, .{});
+    pub const clientInformation = bridge.accessor(Window.getNavigator, null, .{});
     pub const screen = bridge.accessor(Window.getScreen, null, .{});
     pub const visualViewport = bridge.accessor(Window.getVisualViewport, null, .{});
     pub const performance = bridge.accessor(Window.getPerformance, null, .{});

@@ -105,6 +105,15 @@ pub const script: [:0]const u8 =
     \\    this.close = function() {};
     \\  };
     \\}
+    \\if (typeof navigator.connection === 'undefined') {
+    \\  Object.defineProperty(navigator, 'connection', {
+    \\    get: function() { return {
+    \\      effectiveType: '4g', rtt: 50, downlink: 10, saveData: false,
+    \\      onchange: null, addEventListener: function() {}, removeEventListener: function() {},
+    \\    }; },
+    \\    configurable: true
+    \\  });
+    \\}
     \\if (typeof navigator.serviceWorker === 'undefined') {
     \\  Object.defineProperty(navigator, 'serviceWorker', {
     \\    get: function() { return {
