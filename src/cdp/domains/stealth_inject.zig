@@ -46,73 +46,23 @@ pub const script: [:0]const u8 =
     \\  // but should exist in extensions
     \\}
     \\
-    \\// 5. Force Turnstile implicit render after it loads
-    \\// The Turnstile API uses setTimeout(Ar, 0) to trigger ready callbacks,
-    \\// but the callback sometimes doesn't fire. Poll for turnstile and force render.
+    \\// 5. Force Turnstile render via polling
     \\(function() {
-    \\  var checkInterval = setInterval(function() {
+    \\  var iv = setInterval(function() {
     \\    if (typeof turnstile !== 'undefined' && turnstile.render) {
-    \\      clearInterval(checkInterval);
+    \\      clearInterval(iv);
     \\      var els = document.querySelectorAll('.cf-turnstile[data-sitekey]');
     \\      for (var i = 0; i < els.length; i++) {
-    \\        if (!els[i].dataset.rendered) {
-    \\          els[i].dataset.rendered = '1';
+    \\        if (!els[i].querySelector('iframe')) {
     \\          turnstile.render(els[i]);
     \\        }
     \\      }
     \\    }
-    \\  }, 100);
-    \\  // Stop polling after 30s
-    \\  setTimeout(function() { clearInterval(checkInterval); }, 30000);
+    \\  }, 200);
+    \\  setTimeout(function() { clearInterval(iv); }, 30000);
     \\})();
     \\
-    \\// 6. Respond to requestExtraParams using cached event.source from init
-    \\// The challenge iframe is in a closed shadow DOM — we can't find it via
-    \\// querySelectorAll. Instead, cache the source window from init messages
-    \\// and use it to respond to requestExtraParams.
-    \\(function() {
-    \\  var widgetSources = {};
-    \\  window.addEventListener('message', function(e) {
-    \\    if (!e.data || e.data.source !== 'cloudflare-challenge') return;
-    \\    // Cache the source window from init messages
-    \\    if (e.data.event === 'init' && e.source) {
-    \\      widgetSources[e.data.widgetId] = {
-    \\        source: e.source,
-    \\        rcV: e.data.nextRcV || '',
-    \\      };
-    \\    }
-    \\    if (e.data.event !== 'requestExtraParams') return;
-    \\    window.__spDebug = window.__spDebug || [];
-    \\    var cached = widgetSources[e.data.widgetId];
-    \\    if (!cached || !cached.source) {
-    \\      window.__spDebug.push('no-cache:' + e.data.widgetId + ' known:' + Object.keys(widgetSources).join(','));
-    \\      return;
-    \\    }
-    \\    window.__spDebug.push('MATCH-v2:' + e.data.widgetId);
-    \\    try {
-    \\      window.__spDebug.push('BEFORE-PM-v2');
-    \\      cached.source.postMessage({
-    \\        source: 'cloudflare-challenge',
-    \\        widgetId: e.data.widgetId,
-    \\        event: 'extraParams',
-    \\        url: location.href,
-    \\        origin: location.origin,
-    \\        sitekey: document.querySelector('.cf-turnstile')?.getAttribute('data-sitekey') || '',
-    \\        execution: 'render',
-    \\        language: 'auto',
-    \\        appearance: 'always',
-    \\        retry: 'auto',
-    \\        'retry-interval': 8000,
-    \\        'refresh-expired': 'auto',
-    \\        'refresh-timeout': 'auto',
-    \\        'expiry-interval': 300000,
-    \\        rcV: cached.rcV,
-    \\        turnstileType: 'm',
-    \\      }, '*');
-    \\      window.__spDebug.push('pm-sent');
-    \\    } catch(ex) { window.__spDebug.push('err:' + ex.message + ' ' + ex.stack?.substring(0,100)); }
-    \\  });
-    \\})();
+    \\// 6. (removed) Let Turnstile parent code handle requestExtraParams natively
     \\
     \\// 7. Block unsupported_browser reject in PARENT window (capture phase, runs before Turnstile)
     \\window.addEventListener('message', function(e) {
