@@ -355,6 +355,15 @@ pub fn createContext(self: *Env, page: *Page, params: ContextParams) !*Context {
     self.contexts[count] = context;
     self.context_count = count + 1;
 
+    // StealthPanda: inject anti-detection patches at context creation time,
+    // BEFORE any scripts (including async scripts) can run.
+    {
+        var stealth_ls: js.Local.Scope = undefined;
+        context.localScope(&stealth_ls);
+        defer stealth_ls.deinit();
+        stealth_ls.local.eval(@import("../../cdp/domains/stealth_inject.zig").script, null) catch {};
+    }
+
     return context;
 }
 

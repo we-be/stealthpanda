@@ -531,19 +531,8 @@ pub fn pageNavigated(arena: Allocator, bc: *CDP.BrowserContext, event: *const No
         );
     }
 
-    // StealthPanda: inject anti-detection script before any page scripts.
-    // This patches common bot detection vectors that check for CDP artifacts.
-    {
-        var ls: js.Local.Scope = undefined;
-        page.js.localScope(&ls);
-        defer ls.deinit();
-
-        var try_catch: lp.js.TryCatch = undefined;
-        try_catch.init(&ls.local);
-        defer try_catch.deinit();
-
-        ls.local.eval(@import("stealth_inject.zig").script, null) catch {};
-    }
+    // StealthPanda: stealth inject now runs at V8 context creation (Env.zig)
+    // to ensure it executes before ANY scripts including async ones.
 
     // Evaluate scripts registered via Page.addScriptToEvaluateOnNewDocument.
     // Must run after the execution context is created but before the client
