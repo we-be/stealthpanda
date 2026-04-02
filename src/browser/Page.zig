@@ -2764,6 +2764,21 @@ pub fn _insertNodeRelative(self: *Page, comptime from_parser: bool, parent: *Nod
             // nodeComplete() callback is executed.
             try self.nodeIsReady(false, child);
 
+            // StealthPanda: when a node becomes connected and has a shadow root,
+            // also process shadow root children (e.g., iframes in shadow DOM).
+            // Without this, iframes in closed shadow DOMs never get iframeAddedCallback.
+            if (parent_is_connected) {
+                if (child.is(Element)) |el| {
+                    if (self._element_shadow_roots.get(el)) |shadow_root| {
+                        var shadow_child = shadow_root.asNode().firstChild();
+                        while (shadow_child) |sc| {
+                            try self.nodeIsReady(false, sc);
+                            shadow_child = sc.nextSibling();
+                        }
+                    }
+                }
+            }
+
             // Check if text was added to a script that hasn't started yet.
             if (child._type == .cdata and parent_is_connected) {
                 if (parent.is(Element.Html.Script)) |script| {
