@@ -1,154 +1,18 @@
-// StealthPanda: JavaScript stealth injection script.
-// Injected before page scripts to patch common bot detection vectors.
+// StealthPanda: Minimal stealth injection + reject blocking.
 
 pub const script: [:0]const u8 =
-    \\// --- StealthPanda anti-detection patches ---
-    \\
-    \\// 1. Lock navigator.webdriver to false (prevent overwrite detection)
+    \\// Lock navigator.webdriver to false
     \\Object.defineProperty(navigator, 'webdriver', {
-    \\  get: () => false,
-    \\  configurable: false,
-    \\  enumerable: true
+    \\  get: () => false, configurable: false, enumerable: true
     \\});
-    \\
-    \\// 2. Remove cdc_ (ChromeDriver) artifacts from window
-    \\(function() {
-    \\  var keys = Object.keys(window);
-    \\  for (var i = 0; i < keys.length; i++) {
-    \\    if (keys[i].match(/^cdc_|^__webdriver/)) {
-    \\      try { delete window[keys[i]]; } catch(e) {}
-    \\    }
-    \\  }
-    \\})();
-    \\
-    \\// 3. Patch Permissions.query to return 'prompt' for notifications
-    \\// (headless browsers often return 'denied' which is a detection signal)
-    \\if (navigator.permissions && navigator.permissions.query) {
-    \\  var origQuery = navigator.permissions.query.bind(navigator.permissions);
-    \\  Object.defineProperty(navigator.permissions, 'query', {
-    \\    value: function(desc) {
-    \\      if (desc && desc.name === 'notifications') {
-    \\        return Promise.resolve({ state: 'prompt', onchange: null });
-    \\      }
-    \\      return origQuery(desc);
-    \\    },
-    \\    writable: true,
-    \\    configurable: true
-    \\  });
-    \\}
-    \\
-    \\// 4. Ensure chrome.runtime has expected shape
-    \\if (window.chrome) {
-    \\  if (!window.chrome.runtime) {
-    \\    window.chrome.runtime = {};
-    \\  }
-    \\  // Chrome runtime should not have onConnect in content scripts
-    \\  // but should exist in extensions
-    \\}
-    \\
-    \\// 5. Use MutationObserver to detect iframes added to shadow DOMs
-    \\// V8's template system bypasses our Zig Node.appendChild for shadow roots.
-    \\// We use JS-level MutationObserver on shadow roots to trigger iframe.src
-    \\// assignment when iframes are added, which goes through the bridge.
-    \\(function() {
-    \\  var _attachShadow = Element.prototype.attachShadow;
-    \\  Element.prototype.attachShadow = function(opts) {
-    \\    var sr = _attachShadow.call(this, opts);
-    \\    // Watch for iframe additions to this shadow root
-    \\    try {
-    \\      var obs = new MutationObserver(function(mutations) {
-    \\        for (var i = 0; i < mutations.length; i++) {
-    \\          var added = mutations[i].addedNodes;
-    \\          for (var j = 0; j < added.length; j++) {
-    \\            var node = added[j];
-    \\            if (node.tagName === 'IFRAME' && node.getAttribute('src')) {
-    \\              // Trigger the .src setter which goes through Zig bridge
-    \\              setTimeout(function() {
-    \\                try { node.src = node.getAttribute('src'); } catch(e) {}
-    \\              }, 0);
-    \\            }
-    \\          }
-    \\        }
-    \\      });
-    \\      obs.observe(sr, { childList: true });
-    \\    } catch(e) {}
-    \\    return sr;
-    \\  };
-    \\})();
-    \\
-    \\// 5b. Deferred iframe.src trigger for shadow DOM iframes
-    \\// When an iframe's src is set via setAttribute while it's in a detached
-    \\// shadow DOM, defer the .src property assignment until the next microtask
-    \\// (by which time the shadow host should be connected to the document).
-    \\(function() {
-    \\  var origSetAttribute = Element.prototype.setAttribute;
-    \\  Element.prototype.setAttribute = function(name, value) {
-    \\    var result = origSetAttribute.call(this, name, value);
-    \\    if (this.tagName === 'IFRAME' && name === 'src' && value) {
-    \\      var iframe = this;
-    \\      // Defer with multiple delays to ensure shadow host is connected
-    \\      var triggered = false;
-    \\      var triggerSrc = function() {
-    \\        if (triggered) return;
-    \\        if (iframe.parentNode && !iframe.contentWindow) {
-    \\          triggered = true;
-    \\          // Use setAttribute (goes through Zig bridge) not .src (bypassed by V8)
-    \\          try {
-    \\            var s = iframe.getAttribute('src');
-    \\            if (s) origSetAttribute.call(iframe, 'src', s + '#' + Date.now());
-    \\          } catch(e) {}
-    \\        }
-    \\      };
-    \\      setTimeout(triggerSrc, 10);
-    \\      setTimeout(triggerSrc, 100);
-    \\      setTimeout(triggerSrc, 500);
-    \\    }
-    \\    return result;
-    \\  };
-    \\})();
-    \\
-    \\// 6. Intercept Turnstile handler to inject logging into requestExtraParams
-    \\(function() {
-    \\  var _ael = EventTarget.prototype.addEventListener;
-    \\  EventTarget.prototype.addEventListener = function(type, fn, opts) {
-    \\    if (type === 'message' && fn && fn.toString().indexOf('widgetMap') !== -1) {
-    \\      window.__tsWrapped = true;
-    \\      var origFn = fn;
-    \\      var wrapped = function(e) {
-    \\        if (e.data && e.data.source === 'cloudflare-challenge' && e.data.event === 'requestExtraParams') {
-    \\          window.__tsREP = window.__tsREP || [];
-    \\          window.__tsREP.push('entering handler for ' + e.data.widgetId);
-    \\        }
-    \\        try {
-    \\          origFn.call(this, e);
-    \\        } catch(ex) {
-    \\          window.__tsREP = window.__tsREP || [];
-    \\          window.__tsREP.push('ERROR: ' + ex.message);
-    \\        }
-    \\        if (e.data && e.data.source === 'cloudflare-challenge' && e.data.event === 'requestExtraParams') {
-    \\          window.__tsREP.push('handler returned');
-    \\        }
-    \\      };
-    \\      return _ael.call(this, type, wrapped, opts);
-    \\    }
-    \\    return _ael.call(this, type, fn, opts);
-    \\  };
-    \\})();
-    \\
-    \\// 7. Block unsupported_browser reject in PARENT and IFRAME contexts
+    \\// Ensure window.chrome exists
+    \\if (!window.chrome) window.chrome = {};
+    \\if (!window.chrome.runtime) window.chrome.runtime = {};
+    \\// Block unsupported_browser reject (capture phase, before Turnstile handler)
     \\window.addEventListener('message', function(e) {
     \\  if (e.data && e.data.source === 'cloudflare-challenge' &&
     \\      e.data.event === 'reject' && e.data.reason === 'unsupported_browser') {
     \\    e.stopImmediatePropagation();
     \\  }
     \\}, true);
-    \\if (window.parent && window.parent !== window) {
-    \\  try {
-    \\    var _opm = window.parent.postMessage;
-    \\    window.parent.postMessage = function(msg, o) {
-    \\      if (msg && msg.event === 'reject' && msg.reason === 'unsupported_browser') return;
-    \\      return _opm.apply(this, arguments);
-    \\    };
-    \\  } catch(e) {}
-    \\}
 ;
