@@ -126,6 +126,28 @@ pub const script: [:0]const u8 =
     \\  });
     \\}
     \\
+    // Stub missing Document methods that Chrome has
+    \\(function() {
+    \\  var dp = Document.prototype;
+    \\  var noop = function() {};
+    \\  var noopRet = function() { return null; };
+    \\  if (!dp.writeln) dp.writeln = function() { document.write.apply(document, arguments); };
+    \\  if (!dp.clear) dp.clear = noop;
+    \\  if (!dp.execCommand) dp.execCommand = function() { return false; };
+    \\  if (!dp.queryCommandEnabled) dp.queryCommandEnabled = function() { return false; };
+    \\  if (!dp.queryCommandIndeterm) dp.queryCommandIndeterm = function() { return false; };
+    \\  if (!dp.queryCommandState) dp.queryCommandState = function() { return false; };
+    \\  if (!dp.queryCommandSupported) dp.queryCommandSupported = function() { return false; };
+    \\  if (!dp.queryCommandValue) dp.queryCommandValue = function() { return ''; };
+    \\  if (!dp.caretRangeFromPoint) dp.caretRangeFromPoint = noopRet;
+    \\  if (!dp.createExpression) dp.createExpression = noopRet;
+    \\  if (!dp.createNSResolver) dp.createNSResolver = noopRet;
+    \\  if (!dp.evaluate) dp.evaluate = noopRet;
+    \\  if (!dp.exitFullscreen) dp.exitFullscreen = function() { return Promise.resolve(); };
+    \\  if (!dp.exitPointerLock) dp.exitPointerLock = noop;
+    \\  if (!dp.getAnimations) dp.getAnimations = function() { return []; };
+    \\})();
+    \\
     // Patch contentWindow to add missing Chrome properties
     // CF orchestrator creates a hidden iframe and enumerates all properties
     // of contentWindow, navigator, and contentDocument for fingerprinting
