@@ -69,6 +69,54 @@ pub const script: [:0]const u8 =
     \\  }
     \\}, true);
     \\
+    // Stub APIs that CF orchestrator checks for browser identity
+    \\if (typeof Notification === 'undefined') {
+    \\  window.Notification = function(title, opts) {};
+    \\  Notification.permission = 'default';
+    \\  Notification.requestPermission = function() {
+    \\    return Promise.resolve('default');
+    \\  };
+    \\}
+    \\if (typeof BroadcastChannel === 'undefined') {
+    \\  window.BroadcastChannel = function(name) {
+    \\    this.name = name;
+    \\    this.postMessage = function() {};
+    \\    this.close = function() {};
+    \\    this.onmessage = null;
+    \\  };
+    \\}
+    \\if (typeof indexedDB === 'undefined') {
+    \\  Object.defineProperty(window, 'indexedDB', {
+    \\    get: function() { return { open: function() { return {}; } }; },
+    \\    configurable: true
+    \\  });
+    \\}
+    \\if (typeof caches === 'undefined') {
+    \\  Object.defineProperty(window, 'caches', {
+    \\    get: function() { return { open: function() { return Promise.resolve({}); } }; },
+    \\    configurable: true
+    \\  });
+    \\}
+    \\if (typeof RTCPeerConnection === 'undefined') {
+    \\  window.RTCPeerConnection = function(config) {
+    \\    this.createDataChannel = function() { return {}; };
+    \\    this.createOffer = function() { return Promise.resolve({}); };
+    \\    this.setLocalDescription = function() { return Promise.resolve(); };
+    \\    this.close = function() {};
+    \\  };
+    \\}
+    \\if (typeof navigator.serviceWorker === 'undefined') {
+    \\  Object.defineProperty(navigator, 'serviceWorker', {
+    \\    get: function() { return {
+    \\      register: function() { return Promise.reject(new Error('not supported')); },
+    \\      ready: Promise.resolve(null),
+    \\      controller: null,
+    \\      getRegistrations: function() { return Promise.resolve([]); },
+    \\    }; },
+    \\    configurable: true
+    \\  });
+    \\}
+    \\
     // Worker polyfill for managed challenge POW
     // CF creates Workers from Blob URLs for proof-of-work computation.
     // This polyfill runs worker code inline on the main thread.
