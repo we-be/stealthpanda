@@ -56,10 +56,19 @@ pub const script: [:0]const u8 =
     \\    var result = origSetAttribute.call(this, name, value);
     \\    if (this.tagName === 'IFRAME' && name === 'src' && value) {
     \\      var iframe = this;
-    \\      // Defer to allow the shadow host to be connected first
-    \\      Promise.resolve().then(function() {
-    \\        try { iframe.src = iframe.getAttribute('src'); } catch(e) {}
-    \\      });
+    \\      // Defer with multiple delays to ensure shadow host is connected
+    \\      var triggered = false;
+    \\      var triggerSrc = function() {
+    \\        if (triggered) return;
+    \\        if (iframe.isConnected && !iframe.contentWindow) {
+    \\          triggered = true;
+    \\          try { iframe.src = iframe.getAttribute('src'); } catch(e) {}
+    \\        }
+    \\      };
+    \\      setTimeout(triggerSrc, 0);
+    \\      setTimeout(triggerSrc, 50);
+    \\      setTimeout(triggerSrc, 200);
+    \\      setTimeout(triggerSrc, 1000);
     \\    }
     \\    return result;
     \\  };
