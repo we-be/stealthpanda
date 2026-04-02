@@ -66,42 +66,44 @@ pub const script: [:0]const u8 =
     \\  setTimeout(function() { clearInterval(checkInterval); }, 30000);
     \\})();
     \\
-    \\// 6. Respond to requestExtraParams when Turnstile can't find the iframe
-    \\// Capture rcV from init messages and pass it back in extraParams response.
+    \\// 6. Respond to requestExtraParams using cached event.source from init
+    \\// The challenge iframe is in a closed shadow DOM — we can't find it via
+    \\// querySelectorAll. Instead, cache the source window from init messages
+    \\// and use it to respond to requestExtraParams.
     \\(function() {
-    \\  var widgetData = {};
+    \\  var widgetSources = {};
     \\  window.addEventListener('message', function(e) {
     \\    if (!e.data || e.data.source !== 'cloudflare-challenge') return;
-    \\    if (e.data.event === 'init' && e.data.nextRcV) {
-    \\      widgetData[e.data.widgetId] = { rcV: e.data.nextRcV, mode: e.data.mode };
+    \\    // Cache the source window from init messages
+    \\    if (e.data.event === 'init' && e.source) {
+    \\      widgetSources[e.data.widgetId] = {
+    \\        source: e.source,
+    \\        rcV: e.data.nextRcV || '',
+    \\      };
     \\    }
     \\    if (e.data.event !== 'requestExtraParams') return;
-    \\    var iframes = document.querySelectorAll('iframe');
-    \\    for (var i = 0; i < iframes.length; i++) {
-    \\      if (!iframes[i].contentWindow) continue;
-    \\      try {
-    \\        var wd = widgetData[e.data.widgetId] || {};
-    \\        iframes[i].contentWindow.postMessage({
-    \\          source: 'cloudflare-challenge',
-    \\          widgetId: e.data.widgetId,
-    \\          event: 'extraParams',
-    \\          url: location.href,
-    \\          origin: location.origin,
-    \\          sitekey: document.querySelector('.cf-turnstile')?.getAttribute('data-sitekey') || '',
-    \\          execution: 'render',
-    \\          language: 'auto',
-    \\          appearance: 'always',
-    \\          retry: 'auto',
-    \\          'retry-interval': 8000,
-    \\          'refresh-expired': 'auto',
-    \\          'refresh-timeout': 'auto',
-    \\          'expiry-interval': 300000,
-    \\          rcV: wd.rcV || '',
-    \\          turnstileType: 'm',
-    \\        }, '*');
-    \\      } catch(ex) {}
-    \\      break;
-    \\    }
+    \\    var cached = widgetSources[e.data.widgetId];
+    \\    if (!cached || !cached.source) return;
+    \\    try {
+    \\      cached.source.postMessage({
+    \\        source: 'cloudflare-challenge',
+    \\        widgetId: e.data.widgetId,
+    \\        event: 'extraParams',
+    \\        url: location.href,
+    \\        origin: location.origin,
+    \\        sitekey: document.querySelector('.cf-turnstile')?.getAttribute('data-sitekey') || '',
+    \\        execution: 'render',
+    \\        language: 'auto',
+    \\        appearance: 'always',
+    \\        retry: 'auto',
+    \\        'retry-interval': 8000,
+    \\        'refresh-expired': 'auto',
+    \\        'refresh-timeout': 'auto',
+    \\        'expiry-interval': 300000,
+    \\        rcV: cached.rcV,
+    \\        turnstileType: 'm',
+    \\      }, '*');
+    \\    } catch(ex) {}
     \\  });
     \\})();
     \\

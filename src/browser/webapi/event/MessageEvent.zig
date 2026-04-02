@@ -100,8 +100,11 @@ pub fn getOrigin(self: *const MessageEvent) []const u8 {
     return self._origin;
 }
 
-pub fn getSource(self: *const MessageEvent) ?*Window {
-    return self._source;
+/// Return source as CrossOriginWindow — this allows postMessage on event.source
+/// regardless of origin (matching the HTML spec's WindowProxy behavior).
+pub fn getSource(self: *const MessageEvent) ?*Window.CrossOriginWindow {
+    const source = self._source orelse return null;
+    return &source._cross_origin_wrapper;
 }
 
 pub const JsApi = struct {

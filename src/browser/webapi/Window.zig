@@ -959,7 +959,7 @@ pub const JsApi = struct {
     }.prompt, .{});
 };
 
-const CrossOriginWindow = struct {
+pub const CrossOriginWindow = struct {
     window: *Window,
 
     pub fn postMessage(self: *CrossOriginWindow, message: js.Value.Temp, target_origin: ?[]const u8, page: *Page) !void {
