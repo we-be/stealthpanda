@@ -2866,6 +2866,22 @@ pub fn attributeChange(self: *Page, element: *Element, name: String, value: Stri
         log.err(.bug, "build.attributeChange", .{ .tag = element.getTag(), .name = name, .value = value, .err = err, .type = self._type, .url = self.url });
     };
 
+    // Direct iframe src handling — bypasses Build dispatch which may fail
+    // due to V8 template inheritance issues with element type resolution.
+    // Only trigger if the iframe is connected or has a parent (is in a tree).
+    if (name.eql(comptime .wrap("src"))) {
+        if (element.asNode().is(IFrame)) |iframe| {
+            const new_src = element.getAttributeSafe(comptime .wrap("src")) orelse "";
+            if (!std.mem.eql(u8, new_src, iframe._src)) {
+                iframe._src = new_src;
+                if (new_src.len > 0) {
+                    iframe._executed = false;
+                    self.iframeAddedCallback(iframe) catch {};
+                }
+            }
+        }
+    }
+
     Element.Html.Custom.invokeAttributeChangedCallbackOnElement(element, name, old_value, value, self);
 
     var it: ?*std.DoublyLinkedList.Node = self._mutation_observers.first;

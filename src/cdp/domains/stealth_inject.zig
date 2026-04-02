@@ -88,20 +88,19 @@ pub const script: [:0]const u8 =
     \\      var iframe = this;
     \\      // Defer with multiple delays to ensure shadow host is connected
     \\      var triggered = false;
-    \\      window.__iframeDebug = window.__iframeDebug || [];
     \\      var triggerSrc = function() {
     \\        if (triggered) return;
-    \\        var alive = !!iframe;
-    \\        var connected = alive && iframe.isConnected;
-    \\        var hasSrc = alive && iframe.getAttribute('src');
-    \\        var srcProp = alive && typeof Object.getOwnPropertyDescriptor(Object.getPrototypeOf(iframe), 'src');
-    \\        window.__iframeDebug.push('alive:'+alive+' c:'+connected+' srcDesc:'+srcProp+' tag:'+iframe?.tagName);
-    \\        if (connected) {
+    \\        if (iframe.parentNode && !iframe.contentWindow) {
     \\          triggered = true;
-    \\          try { iframe.src = hasSrc + '#t'; } catch(e) { window.__iframeDebug.push('err:'+e.message); }
+    \\          // Use setAttribute (goes through Zig bridge) not .src (bypassed by V8)
+    \\          try {
+    \\            var s = iframe.getAttribute('src');
+    \\            if (s) origSetAttribute.call(iframe, 'src', s + '#' + Date.now());
+    \\          } catch(e) {}
     \\        }
     \\      };
-    \\      setTimeout(triggerSrc, 50);
+    \\      setTimeout(triggerSrc, 10);
+    \\      setTimeout(triggerSrc, 100);
     \\      setTimeout(triggerSrc, 500);
     \\    }
     \\    return result;
