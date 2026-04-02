@@ -46,7 +46,26 @@ pub const script: [:0]const u8 =
     \\  // but should exist in extensions
     \\}
     \\
-    \\// 5. Block unsupported_browser reject in PARENT and IFRAME contexts
+    \\// 5. Deferred iframe.src trigger for shadow DOM iframes
+    \\// When an iframe's src is set via setAttribute while it's in a detached
+    \\// shadow DOM, defer the .src property assignment until the next microtask
+    \\// (by which time the shadow host should be connected to the document).
+    \\(function() {
+    \\  var origSetAttribute = Element.prototype.setAttribute;
+    \\  Element.prototype.setAttribute = function(name, value) {
+    \\    var result = origSetAttribute.call(this, name, value);
+    \\    if (this.tagName === 'IFRAME' && name === 'src' && value) {
+    \\      var iframe = this;
+    \\      // Defer to allow the shadow host to be connected first
+    \\      Promise.resolve().then(function() {
+    \\        try { iframe.src = iframe.getAttribute('src'); } catch(e) {}
+    \\      });
+    \\    }
+    \\    return result;
+    \\  };
+    \\})();
+    \\
+    \\// 6. Block unsupported_browser reject in PARENT and IFRAME contexts
     \\window.addEventListener('message', function(e) {
     \\  if (e.data && e.data.source === 'cloudflare-challenge' &&
     \\      e.data.event === 'reject' && e.data.reason === 'unsupported_browser') {
