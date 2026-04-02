@@ -870,4 +870,5 @@ pub const JsApis = flattenTypes(&.{
     @import("../webapi/canvas/TextMetrics.zig"),
     @import("../webapi/MediaDevices.zig"),
     @import("../webapi/SpeechSynthesis.zig"),
+    @import("../webapi/Worker.zig"),
 });
