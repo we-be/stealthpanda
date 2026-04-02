@@ -188,6 +188,50 @@ pub fn digest(_: *const SubtleCrypto, algo: []const u8, data: js.TypedArray(u8),
     return local.resolvePromise(js.ArrayBuffer{ .values = out[0..out_size] });
 }
 
+/// Import a key from external, portable format.
+pub fn importKey(
+    _: *const SubtleCrypto,
+    _: []const u8,
+    _: ?js.Value,
+    _: ?js.Value,
+    _: bool,
+    _: ?js.Value,
+    page: *Page,
+) !js.Promise {
+    log.warn(.not_implemented, "SubtleCrypto.importKey", .{});
+    return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+}
+
+/// Encrypt data.
+pub fn encrypt(_: *const SubtleCrypto, _: ?js.Value, _: ?js.Value, _: ?js.Value, page: *Page) !js.Promise {
+    log.warn(.not_implemented, "SubtleCrypto.encrypt", .{});
+    return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+}
+
+/// Decrypt data.
+pub fn decrypt(_: *const SubtleCrypto, _: ?js.Value, _: ?js.Value, _: ?js.Value, page: *Page) !js.Promise {
+    log.warn(.not_implemented, "SubtleCrypto.decrypt", .{});
+    return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+}
+
+/// Derive a key from a master key.
+pub fn deriveKey(_: *const SubtleCrypto, _: ?js.Value, _: ?js.Value, _: ?js.Value, _: bool, _: ?js.Value, page: *Page) !js.Promise {
+    log.warn(.not_implemented, "SubtleCrypto.deriveKey", .{});
+    return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+}
+
+/// Wrap a key.
+pub fn wrapKey(_: *const SubtleCrypto, _: ?js.Value, _: ?js.Value, _: ?js.Value, _: ?js.Value, page: *Page) !js.Promise {
+    log.warn(.not_implemented, "SubtleCrypto.wrapKey", .{});
+    return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+}
+
+/// Unwrap a key.
+pub fn unwrapKey(_: *const SubtleCrypto, _: ?js.Value, _: ?js.Value, _: ?js.Value, _: ?js.Value, _: ?js.Value, _: bool, _: ?js.Value, page: *Page) !js.Promise {
+    log.warn(.not_implemented, "SubtleCrypto.unwrapKey", .{});
+    return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+}
+
 pub const JsApi = struct {
     pub const bridge = js.Bridge(SubtleCrypto);
 
@@ -200,6 +244,12 @@ pub const JsApi = struct {
 
     pub const generateKey = bridge.function(SubtleCrypto.generateKey, .{ .dom_exception = true });
     pub const exportKey = bridge.function(SubtleCrypto.exportKey, .{ .dom_exception = true });
+    pub const importKey = bridge.function(SubtleCrypto.importKey, .{ .dom_exception = true });
+    pub const encrypt = bridge.function(SubtleCrypto.encrypt, .{ .dom_exception = true });
+    pub const decrypt = bridge.function(SubtleCrypto.decrypt, .{ .dom_exception = true });
+    pub const deriveKey = bridge.function(SubtleCrypto.deriveKey, .{ .dom_exception = true });
+    pub const wrapKey = bridge.function(SubtleCrypto.wrapKey, .{ .dom_exception = true });
+    pub const unwrapKey = bridge.function(SubtleCrypto.unwrapKey, .{ .dom_exception = true });
     pub const sign = bridge.function(SubtleCrypto.sign, .{ .dom_exception = true });
     pub const verify = bridge.function(SubtleCrypto.verify, .{ .dom_exception = true });
     pub const deriveBits = bridge.function(SubtleCrypto.deriveBits, .{ .dom_exception = true });

@@ -277,6 +277,9 @@ pub const JsApi = struct {
     pub const timeOrigin = bridge.accessor(Performance.getTimeOrigin, null, .{});
     pub const timing = bridge.accessor(Performance.getTiming, null, .{});
     pub const navigation = bridge.accessor(Performance.getNavigation, null, .{});
+    // Chrome-specific: performance.memory (MemoryInfo)
+    // Stub for fingerprint consistency — stealth inject overrides with realistic values
+    pub const memory = bridge.property(null, .{ .template = false, .readonly = false });
 };
 
 pub const Entry = struct {

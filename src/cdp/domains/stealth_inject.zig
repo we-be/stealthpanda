@@ -126,6 +126,18 @@ pub const script: [:0]const u8 =
     \\  });
     \\}
     \\
+    // Chrome-specific: performance.memory
+    \\if (typeof performance !== 'undefined' && !performance.memory) {
+    \\  Object.defineProperty(performance, 'memory', {
+    \\    get: function() { return {
+    \\      jsHeapSizeLimit: 2172649472,
+    \\      totalJSHeapSize: 19863160,
+    \\      usedJSHeapSize: 16713168,
+    \\    }; },
+    \\    configurable: true
+    \\  });
+    \\}
+    \\
     // Stub missing Document methods that Chrome has
     \\(function() {
     \\  var dp = Document.prototype;
