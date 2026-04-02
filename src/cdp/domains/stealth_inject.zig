@@ -126,6 +126,47 @@ pub const script: [:0]const u8 =
     \\  });
     \\}
     \\
+    // Patch contentWindow to add missing Chrome properties
+    // CF orchestrator creates a hidden iframe and enumerates all properties
+    // of contentWindow, navigator, and contentDocument for fingerprinting
+    \\(function() {
+    \\  var origAppendChild = Node.prototype.appendChild;
+    \\  Node.prototype.appendChild = function(child) {
+    \\    var result = origAppendChild.call(this, child);
+    \\    if (child.tagName === 'IFRAME' && child.contentWindow) {
+    \\      var w = child.contentWindow;
+    \\      // Add Chrome-like properties that are typically present on Window
+    \\      var missing = ['external','styleMedia','defaultStatus','defaultstatus',
+    \\        'offscreenBuffering','screenLeft','screenTop',
+    \\        'chrome','clientInformation','onbeforeinstallprompt',
+    \\        'onappinstalled','getComputedStyle','getSelection',
+    \\        'ondevicemotion','ondeviceorientation','ondeviceorientationabsolute',
+    \\        'oncontextmenu','onpointerdown','onpointerup','onpointermove',
+    \\        'onpointerover','onpointerout','onpointerenter','onpointerleave',
+    \\        'onpointercancel','ongotpointercapture','onlostpointercapture',
+    \\        'onwheel','ontouchstart','ontouchend','ontouchmove','ontouchcancel',
+    \\        'onanimationend','onanimationiteration','onanimationstart',
+    \\        'ontransitionend','ontransitionrun','ontransitionstart',
+    \\        'onabort','onblur','onerror','onfocus','onload','onresize','onscroll',
+    \\        'scheduler','trustedTypes','crossOriginIsolated','originAgentCluster',
+    \\        'navigation','caches','cookieStore',
+    \\      ];
+    \\      for (var i = 0; i < missing.length; i++) {
+    \\        if (!(missing[i] in w)) {
+    \\          try { w[missing[i]] = null; } catch(e) {}
+    \\        }
+    \\      }
+    \\      // Add clientInformation as alias for navigator
+    \\      if (!w.clientInformation) {
+    \\        try { Object.defineProperty(w, 'clientInformation', {
+    \\          get: function() { return w.navigator; }, configurable: true
+    \\        }); } catch(e) {}
+    \\      }
+    \\    }
+    \\    return result;
+    \\  };
+    \\})();
+    \\
     // Worker polyfill for managed challenge POW
     // CF creates Workers from Blob URLs for proof-of-work computation.
     // This polyfill runs worker code inline on the main thread.
