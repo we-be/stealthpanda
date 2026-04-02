@@ -1269,6 +1269,22 @@ pub fn addElementId(self: *Page, parent: *Node, element: *Element, id: []const u
     }
 }
 
+/// Register an orphan element in shadow roots (for V8-only DOM elements).
+/// Adds the element's ID to shadow root ID maps AND adds the element
+/// as a child of shadow roots that have no Zig children (tree sync).
+pub fn addOrphanElementId(self: *Page, element: *Element, id: []const u8) void {
+    var it = self._element_shadow_roots.iterator();
+    while (it.next()) |entry| {
+        const sr = entry.value_ptr.*;
+        sr._elements_by_id.put(self.arena, id, element) catch {};
+        // Also add to the DOM tree so querySelector's tree walk can find it
+        const sr_node = sr.asDocumentFragment().asNode();
+        if (sr_node.firstChild() == null and element.asNode()._parent == null) {
+            self.appendNode(sr_node, element.asNode(), .{}) catch {};
+        }
+    }
+}
+
 pub fn removeElementId(self: *Page, element: *Element, id: []const u8) void {
     const node = element.asNode();
     self.removeElementIdWithMaps(self.getElementIdMap(node), id);

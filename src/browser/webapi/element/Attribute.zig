@@ -225,9 +225,11 @@ pub const List = struct {
         if (is_id) {
             if (element.asNode()._parent) |parent| {
                 try page.addElementId(parent, element, entry._value.str());
+            } else {
+                // Element has no Zig parent (V8-only shadow DOM).
+                // Register its ID in ALL shadow roots so querySelector can find it.
+                page.addOrphanElementId(element, entry._value.str());
             }
-            // Don't return early — attributeChange must fire even for
-            // parentless elements (e.g., iframes in V8-only shadow DOMs)
         }
         page.domChanged();
         page.attributeChange(element, result.normalized, entry._value, old_value);
