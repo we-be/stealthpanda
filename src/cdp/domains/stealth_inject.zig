@@ -65,7 +65,15 @@ pub const script: [:0]const u8 =
     \\  };
     \\})();
     \\
-    \\// 6. Block unsupported_browser reject in PARENT and IFRAME contexts
+    \\// 6. Monitor for errors in the Turnstile message handler
+    \\window.addEventListener('message', function(e) {
+    \\  if (e.data && e.data.source === 'cloudflare-challenge' && e.data.event === 'requestExtraParams') {
+    \\    window.__repDebug = window.__repDebug || [];
+    \\    window.__repDebug.push('wid:' + e.data.widgetId);
+    \\  }
+    \\});
+    \\
+    \\// 7. Block unsupported_browser reject in PARENT and IFRAME contexts
     \\window.addEventListener('message', function(e) {
     \\  if (e.data && e.data.source === 'cloudflare-challenge' &&
     \\      e.data.event === 'reject' && e.data.reason === 'unsupported_browser') {
