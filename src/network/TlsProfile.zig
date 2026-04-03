@@ -17,9 +17,14 @@ const boringssl = struct {
     // Enable certificate compression (compress_certificate extension)
     // Algorithm ID 2 = brotli
     extern fn SSL_CTX_add_cert_compression_alg(ctx: *SSL_CTX, alg_id: u16, compress: ?*const anyopaque, decompress: ?*const anyopaque) c_int;
+    // GREASE: Generate Random Extensions And Sustain Extensibility (RFC 8701)
+    // Chrome enables this — adds random GREASE values to cipher suites, extensions, etc.
+    extern fn SSL_CTX_set_grease_enabled(ctx: *SSL_CTX, enabled: c_int) void;
+    // Extension permutation: randomize extension order in ClientHello (Chrome does this since ~106)
+    extern fn SSL_CTX_set_permute_extensions(ctx: *SSL_CTX, enabled: c_int) void;
     // ALPS (Application-Layer Protocol Settings)
     const SSL = anyopaque;
-    extern fn SSL_CTX_set_cert_cb(ctx: *SSL_CTX, cb: ?*const fn (*SSL, ?*anyopaque) callconv(.c) c_int, arg: ?*anyopaque) void;
+    extern fn SSL_CTX_set_info_callback(ctx: *SSL_CTX, cb: ?*const fn (*SSL, c_int, c_int) callconv(.c) void) void;
     extern fn SSL_add_application_settings(ssl: *SSL, proto: [*]const u8, proto_len: usize, settings: [*]const u8, settings_len: usize) c_int;
     extern fn SSL_set_alps_use_new_codepoint(ssl: *SSL, use_new: c_int) void;
 };
@@ -27,14 +32,19 @@ const boringssl = struct {
 /// SSL context callback — configures BoringSSL to send Chrome-like extensions
 fn sslCtxCallback(_: ?*libcurl.Curl, ssl_ctx: ?*anyopaque, _: ?*anyopaque) callconv(.c) c_uint {
     const ctx: *boringssl.SSL_CTX = @ptrCast(ssl_ctx orelse return 0);
+    // Enable GREASE (RFC 8701) — Chrome adds random GREASE values
+    boringssl.SSL_CTX_set_grease_enabled(ctx, 1);
+    // Enable extension permutation — Chrome randomizes extension order (since ~106)
+    boringssl.SSL_CTX_set_permute_extensions(ctx, 1);
     // Enable OCSP stapling (adds status_request extension to ClientHello)
     boringssl.SSL_CTX_enable_ocsp_stapling(ctx);
     // Enable SCT (adds signed_certificate_timestamp extension)
     boringssl.SSL_CTX_enable_signed_cert_timestamps(ctx);
     // Enable certificate compression with brotli (adds compress_certificate extension)
     _ = boringssl.SSL_CTX_add_cert_compression_alg(ctx, 2, null, certDecompress);
-    // Set cert callback for per-connection ALPS configuration
-    boringssl.SSL_CTX_set_cert_cb(ctx, certCallback, null);
+    // Set info callback for per-connection ALPS configuration
+    // The info callback fires with SSL_CB_HANDSHAKE_START (0x10) before ClientHello
+    boringssl.SSL_CTX_set_info_callback(ctx, sslInfoCallback);
     return 0; // CURLE_OK
 }
 
@@ -89,15 +99,17 @@ fn certDecompress(
     return 1; // success
 }
 
-/// Per-connection SSL callback to enable ALPS
-fn certCallback(ssl: *boringssl.SSL, _: ?*anyopaque) callconv(.c) c_int {
-    // Use the new ALPS codepoint (Chrome uses this since M115)
-    boringssl.SSL_set_alps_use_new_codepoint(ssl, 1);
-    // Add empty ALPS settings for h2 protocol
-    // Chrome sends its H2 SETTINGS via ALPS during the TLS handshake
-    // An empty settings payload is sufficient to trigger the extension
-    _ = boringssl.SSL_add_application_settings(ssl, "h2", 2, "", 0);
-    return 1; // success, continue handshake
+/// Per-connection SSL info callback to enable ALPS before ClientHello
+/// SSL_CB_HANDSHAKE_START = 0x10 fires before the ClientHello is constructed
+fn sslInfoCallback(ssl: *boringssl.SSL, where: c_int, _: c_int) callconv(.c) void {
+    const SSL_CB_HANDSHAKE_START: c_int = 0x10;
+    if (where & SSL_CB_HANDSHAKE_START != 0) {
+        // Use the old ALPS codepoint 17513 (Chrome's current value)
+        boringssl.SSL_set_alps_use_new_codepoint(ssl, 0);
+        // Add ALPS settings for h2 protocol
+        // Chrome sends its H2 SETTINGS via ALPS during the TLS handshake
+        _ = boringssl.SSL_add_application_settings(ssl, "h2", 2, "", 0);
+    }
 }
 
 pub const TlsProfile = struct {

@@ -133,6 +133,8 @@ pub fn init(app: *App, opts: InitOpts) !Env {
     v8.v8__Isolate__SetMicrotasksPolicy(isolate_handle, v8.kExplicit);
     v8.v8__Isolate__SetFatalErrorHandler(isolate_handle, fatalCallback);
     v8.v8__Isolate__SetOOMErrorHandler(isolate_handle, oomCallback);
+    // StealthPanda: capture stack traces for uncaught exceptions
+    v8.v8__Isolate__SetCaptureStackTraceForUncaughtExceptions(isolate_handle, true, 10);
 
     isolate.enter();
     errdefer isolate.exit();

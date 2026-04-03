@@ -3,6 +3,7 @@
 // Patches JS APIs that bot detectors probe to detect automation.
 
 pub const script: [:0]const u8 =
+    \\
     // Lock navigator.webdriver to false
     \\Object.defineProperty(navigator, 'webdriver', {
     \\  get: () => false, configurable: false, enumerable: true
@@ -64,8 +65,8 @@ pub const script: [:0]const u8 =
     \\  return result;
     \\};
     \\makeNative(Function.prototype.toString, 'toString');
-    \\Object.defineProperty(window, '_makeNative', {value: makeNative, enumerable: false, configurable: true});
-    \\Object.defineProperty(window, 'makeNative', {value: makeNative, enumerable: false, configurable: true});
+    \\try { Object.defineProperty(window, '_makeNative', {value: makeNative, enumerable: false, configurable: true, writable: true}); } catch(e) {}
+    \\try { Object.defineProperty(window, 'makeNative', {value: makeNative, enumerable: false, configurable: true, writable: true}); } catch(e) {}
     \\
     // Block unsupported_browser reject (capture phase, before Turnstile handler)
     \\window.addEventListener('message', function(e) {
