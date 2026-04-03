@@ -209,7 +209,8 @@ pub fn importKey(
     _: ?js.Value, // key_usages
     page: *Page,
 ) !js.Promise {
-    log.info(.js, "subtle.importKey called", .{ .format = format, .data_len = key_data.values.len });
+    const algo_name: []const u8 = if (algo) |a| a.getName() else "null";
+    log.info(.js, "subtle.importKey called", .{ .format = format, .algo = algo_name });
     // Check if the algorithm is ECDSA
     if (algo) |a| {
         if (a.isECDSA()) {
