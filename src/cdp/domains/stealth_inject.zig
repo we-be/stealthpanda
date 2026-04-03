@@ -87,6 +87,7 @@ pub const script: [:0]const u8 =
     \\    } catch(e) {}
     \\  }
     \\})();
+    \\
     // Fix performance.timing — all timestamps should be realistic Unix timestamps
     \\(function() {
     \\  try {
