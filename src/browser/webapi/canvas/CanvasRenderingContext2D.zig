@@ -24,6 +24,15 @@ const Allocator = std.mem.Allocator;
 /// https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D
 const CanvasRenderingContext2D = @This();
 
+const MAX_SAVE_DEPTH = 32;
+const SavedState = struct {
+    xform: z2d.Transformation,
+    fill_style: color.RGBA,
+    stroke_color: color.RGBA,
+    line_width: f64,
+    global_alpha: f64,
+};
+
 _canvas: *Canvas,
 _fill_style: color.RGBA = color.RGBA.Named.black,
 _stroke_color: color.RGBA = color.RGBA.Named.black,
@@ -31,14 +40,17 @@ _line_width: f64 = 1.0,
 _global_alpha: f64 = 1.0,
 
 // z2d rendering state — lazily initialized on first draw.
-// The surface persists across calls; the context is recreated per fill/stroke.
 _surface: ?z2d.Surface = null,
 _alloc: ?Allocator = null,
 
-// z2d path accumulator — persists between path operations (moveTo, lineTo, etc.)
-// and is consumed by fill/stroke. Uses z2d's native path representation
-// which supports cubic bezier curves and arcs natively.
+// z2d path accumulator — persists between path operations
 _path: ?z2d.Path = null,
+
+// Transform state — accumulated transformation matrix
+_transform: z2d.Transformation = z2d.Transformation.identity,
+
+_save_stack: [MAX_SAVE_DEPTH]SavedState = undefined,
+_save_depth: usize = 0,
 
 pub fn getCanvas(self: *const CanvasRenderingContext2D) *Canvas {
     return self._canvas;
@@ -189,14 +201,73 @@ pub fn strokeRect(self: *CanvasRenderingContext2D, x: f64, y: f64, w: f64, h: f6
 // z2d provides native cubic bezier curves, arcs, and anti-aliased rendering.
 // We accumulate path segments using z2d.Path and render on fill/stroke.
 
-pub fn save(_: *CanvasRenderingContext2D) void {}
-pub fn restore(_: *CanvasRenderingContext2D) void {}
-pub fn scale(_: *CanvasRenderingContext2D, _: f64, _: f64) void {}
-pub fn rotate(_: *CanvasRenderingContext2D, _: f64) void {}
-pub fn translate(_: *CanvasRenderingContext2D, _: f64, _: f64) void {}
-pub fn transform(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64) void {}
-pub fn setTransform(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64) void {}
-pub fn resetTransform(_: *CanvasRenderingContext2D) void {}
+pub fn save(self: *CanvasRenderingContext2D) void {
+    if (self._save_depth < MAX_SAVE_DEPTH) {
+        self._save_stack[self._save_depth] = .{
+            .xform = self._transform,
+            .fill_style = self._fill_style,
+            .stroke_color = self._stroke_color,
+            .line_width = self._line_width,
+            .global_alpha = self._global_alpha,
+        };
+        self._save_depth += 1;
+    }
+}
+
+pub fn restore(self: *CanvasRenderingContext2D) void {
+    if (self._save_depth > 0) {
+        self._save_depth -= 1;
+        const state = self._save_stack[self._save_depth];
+        self._transform = state.xform;
+        self._fill_style = state.fill_style;
+        self._stroke_color = state.stroke_color;
+        self._line_width = state.line_width;
+        self._global_alpha = state.global_alpha;
+    }
+}
+
+pub fn scale(self: *CanvasRenderingContext2D, sx: f64, sy: f64) void {
+    self._transform = self._transform.scale(sx, sy);
+}
+
+pub fn rotate(self: *CanvasRenderingContext2D, angle: f64) void {
+    self._transform = self._transform.rotate(angle);
+}
+
+pub fn translate(self: *CanvasRenderingContext2D, tx: f64, ty: f64) void {
+    self._transform = self._transform.translate(tx, ty);
+}
+
+pub fn transformMultiply(self: *CanvasRenderingContext2D, a: f64, b: f64, c_: f64, d: f64, e: f64, f_: f64) void {
+    // Canvas transform(a, b, c, d, e, f) multiplies the current transform
+    // Canvas matrix: | a c e |  z2d matrix: | ax by tx |
+    //               | b d f |               | cx dy ty |
+    //               | 0 0 1 |               |  0  0  1 |
+    const m = z2d.Transformation{
+        .ax = a,
+        .by = c_,
+        .cx = b,
+        .dy = d,
+        .tx = e,
+        .ty = f_,
+    };
+    self._transform = self._transform.mul(m);
+}
+
+pub fn setTransformMatrix(self: *CanvasRenderingContext2D, a: f64, b: f64, c_: f64, d: f64, e: f64, f_: f64) void {
+    self._transform = .{
+        .ax = a,
+        .by = c_,
+        .cx = b,
+        .dy = d,
+        .tx = e,
+        .ty = f_,
+    };
+}
+
+pub fn resetTransform(self: *CanvasRenderingContext2D) void {
+    self._transform = z2d.Transformation.identity;
+}
 
 fn ensurePath(self: *CanvasRenderingContext2D, page: ?*Page) *z2d.Path {
     // Ensure allocator is set (needed for path ops before any fill/stroke)
@@ -286,6 +357,7 @@ pub fn fill(self: *CanvasRenderingContext2D, page: *Page) void {
     defer ctx.deinit();
 
     ctx.setSourceToPixel(self.fillToZ2dPixel());
+    ctx.setTransformation(self._transform);
     ctx.path = path.*;
     ctx.fill() catch {};
     self._surface = sfc;
@@ -302,6 +374,7 @@ pub fn stroke(self: *CanvasRenderingContext2D, page: *Page) void {
 
     ctx.setSourceToPixel(self.strokeToZ2dPixel());
     ctx.setLineWidth(self._line_width);
+    ctx.setTransformation(self._transform);
     ctx.path = path.*;
     ctx.stroke() catch {};
     self._surface = sfc;
@@ -403,8 +476,8 @@ pub const JsApi = struct {
     pub const scale = bridge.function(CanvasRenderingContext2D.scale, .{});
     pub const rotate = bridge.function(CanvasRenderingContext2D.rotate, .{});
     pub const translate = bridge.function(CanvasRenderingContext2D.translate, .{});
-    pub const transform = bridge.function(CanvasRenderingContext2D.transform, .{});
-    pub const setTransform = bridge.function(CanvasRenderingContext2D.setTransform, .{});
+    pub const transform = bridge.function(CanvasRenderingContext2D.transformMultiply, .{});
+    pub const setTransform = bridge.function(CanvasRenderingContext2D.setTransformMatrix, .{});
     pub const resetTransform = bridge.function(CanvasRenderingContext2D.resetTransform, .{});
     pub const clearRect = bridge.function(CanvasRenderingContext2D.clearRect, .{});
     pub const fillRect = bridge.function(CanvasRenderingContext2D.fillRect, .{});
