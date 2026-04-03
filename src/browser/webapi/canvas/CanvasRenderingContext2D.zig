@@ -24,28 +24,21 @@ const Allocator = std.mem.Allocator;
 /// https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D
 const CanvasRenderingContext2D = @This();
 
-const PathOp = union(enum) {
-    move_to: struct { x: f64, y: f64 },
-    line_to: struct { x: f64, y: f64 },
-    close,
-    arc_lines: struct { cx: f64, cy: f64, r: f64, start: f64, end: f64 },
-};
-const MAX_PATH_OPS = 256;
-
 _canvas: *Canvas,
 _fill_style: color.RGBA = color.RGBA.Named.black,
 _stroke_color: color.RGBA = color.RGBA.Named.black,
 _line_width: f64 = 1.0,
+_global_alpha: f64 = 1.0,
 
-// z2d rendering state — lazily initialized on first draw
+// z2d rendering state — lazily initialized on first draw.
+// The surface persists across calls; the context is recreated per fill/stroke.
 _surface: ?z2d.Surface = null,
 _alloc: ?Allocator = null,
 
-// Path state for fill/stroke
-_path_ops: [MAX_PATH_OPS]PathOp = undefined,
-_path_len: usize = 0,
-_path_x: f64 = 0,
-_path_y: f64 = 0,
+// z2d path accumulator — persists between path operations (moveTo, lineTo, etc.)
+// and is consumed by fill/stroke. Uses z2d's native path representation
+// which supports cubic bezier curves and arcs natively.
+_path: ?z2d.Path = null,
 
 pub fn getCanvas(self: *const CanvasRenderingContext2D) *Canvas {
     return self._canvas;
@@ -190,13 +183,10 @@ pub fn strokeRect(self: *CanvasRenderingContext2D, x: f64, y: f64, w: f64, h: f6
     self._surface = sfc;
 }
 
-// === Path-based drawing with z2d ===
-// z2d.Context manages its own internal path state. We use a fresh
-// context for each draw call, accumulating path segments and then
-// filling/stroking. For the Picasso fingerprinting to work, arc(),
-// lineTo(), fill(), and stroke() must produce real pixels.
+// === Path-based drawing using z2d's native path support ===
+// z2d provides native cubic bezier curves, arcs, and anti-aliased rendering.
+// We accumulate path segments using z2d.Path and render on fill/stroke.
 
-// State management (noop for now — z2d doesn't support save/restore stack)
 pub fn save(_: *CanvasRenderingContext2D) void {}
 pub fn restore(_: *CanvasRenderingContext2D) void {}
 pub fn scale(_: *CanvasRenderingContext2D, _: f64, _: f64) void {}
@@ -206,112 +196,103 @@ pub fn transform(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _
 pub fn setTransform(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64) void {}
 pub fn resetTransform(_: *CanvasRenderingContext2D) void {}
 
-pub fn beginPath(self: *CanvasRenderingContext2D) void {
-    self._path_len = 0;
-}
-
-pub fn closePath(self: *CanvasRenderingContext2D) void {
-    if (self._path_len < MAX_PATH_OPS) {
-        self._path_ops[self._path_len] = .close;
-        self._path_len += 1;
-    }
-}
-
-pub fn moveTo(self: *CanvasRenderingContext2D, x: f64, y: f64) void {
-    if (self._path_len < MAX_PATH_OPS) {
-        self._path_ops[self._path_len] = .{ .move_to = .{ .x = x, .y = y } };
-        self._path_len += 1;
-    }
-    self._path_x = x;
-    self._path_y = y;
-}
-
-pub fn lineTo(self: *CanvasRenderingContext2D, x: f64, y: f64) void {
-    if (self._path_len < MAX_PATH_OPS) {
-        self._path_ops[self._path_len] = .{ .line_to = .{ .x = x, .y = y } };
-        self._path_len += 1;
-    }
-    self._path_x = x;
-    self._path_y = y;
-}
-
-pub fn quadraticCurveTo(self: *CanvasRenderingContext2D, cpx: f64, cpy: f64, x: f64, y: f64) void {
-    // Approximate with a line to the endpoint
-    self.lineTo(x, y);
-    _ = cpx;
-    _ = cpy;
-}
-
-pub fn bezierCurveTo(self: *CanvasRenderingContext2D, cp1x: f64, cp1y: f64, cp2x: f64, cp2y: f64, x: f64, y: f64) void {
-    // Approximate with a line to the endpoint
-    self.lineTo(x, y);
-    _ = cp1x;
-    _ = cp1y;
-    _ = cp2x;
-    _ = cp2y;
-}
-
-pub fn arc(self: *CanvasRenderingContext2D, cx: f64, cy: f64, r: f64, start_angle: f64, end_angle: f64, _: ?bool) void {
-    // Approximate arc with line segments
-    if (self._path_len < MAX_PATH_OPS) {
-        self._path_ops[self._path_len] = .{ .arc_lines = .{ .cx = cx, .cy = cy, .r = r, .start = start_angle, .end = end_angle } };
-        self._path_len += 1;
-    }
-}
-
-pub fn arcTo(self: *CanvasRenderingContext2D, x1: f64, y1: f64, _: f64, _: f64, _: f64) void {
-    self.lineTo(x1, y1);
-}
-
-pub fn rect(self: *CanvasRenderingContext2D, x: f64, y: f64, w: f64, h: f64) void {
-    self.moveTo(x, y);
-    self.lineTo(x + w, y);
-    self.lineTo(x + w, y + h);
-    self.lineTo(x, y + h);
-    self.closePath();
-}
-
-fn replayPath(self: *CanvasRenderingContext2D, ctx: *z2d.Context) void {
-    for (self._path_ops[0..self._path_len]) |op| {
-        switch (op) {
-            .move_to => |m| ctx.moveTo(m.x, m.y) catch {},
-            .line_to => |l| ctx.lineTo(l.x, l.y) catch {},
-            .close => ctx.closePath() catch {},
-            .arc_lines => |a| {
-                // Approximate arc with 16 line segments
-                const steps: usize = 16;
-                const range = a.end - a.start;
-                var i: usize = 0;
-                while (i <= steps) : (i += 1) {
-                    const t = a.start + range * @as(f64, @floatFromInt(i)) / @as(f64, @floatFromInt(steps));
-                    const px = a.cx + a.r * @cos(t);
-                    const py = a.cy + a.r * @sin(t);
-                    if (i == 0) {
-                        ctx.moveTo(px, py) catch {};
-                    } else {
-                        ctx.lineTo(px, py) catch {};
-                    }
-                }
-            },
+fn ensurePath(self: *CanvasRenderingContext2D, page: ?*Page) *z2d.Path {
+    // Ensure allocator is set (needed for path ops before any fill/stroke)
+    if (self._alloc == null) {
+        if (page) |p| {
+            self._alloc = p._factory._arena;
         }
     }
+    if (self._path) |*p| return p;
+    self._path = .empty;
+    return &(self._path.?);
+}
+
+pub fn beginPath(self: *CanvasRenderingContext2D) void {
+    if (self._path) |*p| {
+        p.reset();
+    }
+}
+
+pub fn closePath(self: *CanvasRenderingContext2D, page: *Page) void {
+    const alloc = self._alloc orelse page._factory._arena;
+    self._alloc = alloc;
+    const path = self.ensurePath(page);
+    path.close(alloc) catch {};
+}
+
+pub fn moveTo(self: *CanvasRenderingContext2D, x: f64, y: f64, page: *Page) void {
+    const alloc = self._alloc orelse page._factory._arena;
+    self._alloc = alloc;
+    const path = self.ensurePath(page);
+    path.moveTo(alloc, x, y) catch {};
+}
+
+pub fn lineTo(self: *CanvasRenderingContext2D, x: f64, y: f64, page: *Page) void {
+    const alloc = self._alloc orelse page._factory._arena;
+    self._alloc = alloc;
+    const path = self.ensurePath(page);
+    path.lineTo(alloc, x, y) catch {};
+}
+
+pub fn quadraticCurveTo(self: *CanvasRenderingContext2D, cpx: f64, cpy: f64, x: f64, y: f64, page: *Page) void {
+    const alloc = self._alloc orelse page._factory._arena;
+    self._alloc = alloc;
+    const path = self.ensurePath(page);
+    // Approximate quadratic as cubic: use the control point for both cubic CPs.
+    // A proper conversion needs the current point, but this produces reasonable curves.
+    path.curveTo(alloc, cpx, cpy, cpx, cpy, x, y) catch {};
+}
+
+pub fn bezierCurveTo(self: *CanvasRenderingContext2D, cp1x: f64, cp1y: f64, cp2x: f64, cp2y: f64, x: f64, y: f64, page: *Page) void {
+    const alloc = self._alloc orelse page._factory._arena;
+    self._alloc = alloc;
+    const path = self.ensurePath(page);
+    path.curveTo(alloc, cp1x, cp1y, cp2x, cp2y, x, y) catch {};
+}
+
+pub fn arc(self: *CanvasRenderingContext2D, cx: f64, cy: f64, r: f64, start_angle: f64, end_angle: f64, counter_clockwise: ?bool, page: *Page) void {
+    const alloc = self._alloc orelse page._factory._arena;
+    self._alloc = alloc;
+    const path = self.ensurePath(page);
+    if (counter_clockwise orelse false) {
+        path.arcNegative(alloc, cx, cy, r, start_angle, end_angle) catch {};
+    } else {
+        path.arc(alloc, cx, cy, r, start_angle, end_angle) catch {};
+    }
+}
+
+pub fn arcTo(self: *CanvasRenderingContext2D, x1: f64, y1: f64, _: f64, _: f64, _: f64, page: *Page) void {
+    self.lineTo(x1, y1, page);
+}
+
+pub fn rect(self: *CanvasRenderingContext2D, x: f64, y: f64, w: f64, h: f64, page: *Page) void {
+    self.moveTo(x, y, page);
+    self.lineTo(x + w, y, page);
+    self.lineTo(x + w, y + h, page);
+    self.lineTo(x, y + h, page);
+    self.closePath(page);
 }
 
 pub fn fill(self: *CanvasRenderingContext2D, page: *Page) void {
-    if (self._path_len == 0) return;
+    const path = if (self._path) |*p| p else return;
+    if (path.nodes.items.len == 0) return;
+
     self.ensureSurface(page);
     var sfc = self._surface orelse return;
     var ctx = z2d.Context.init(self._alloc orelse return, &sfc);
     defer ctx.deinit();
 
     ctx.setSourceToPixel(self.fillToZ2dPixel());
-    self.replayPath(&ctx);
+    ctx.path = path.*;
     ctx.fill() catch {};
     self._surface = sfc;
 }
 
 pub fn stroke(self: *CanvasRenderingContext2D, page: *Page) void {
-    if (self._path_len == 0) return;
+    const path = if (self._path) |*p| p else return;
+    if (path.nodes.items.len == 0) return;
+
     self.ensureSurface(page);
     var sfc = self._surface orelse return;
     var ctx = z2d.Context.init(self._alloc orelse return, &sfc);
@@ -319,7 +300,7 @@ pub fn stroke(self: *CanvasRenderingContext2D, page: *Page) void {
 
     ctx.setSourceToPixel(self.strokeToZ2dPixel());
     ctx.setLineWidth(self._line_width);
-    self.replayPath(&ctx);
+    ctx.path = path.*;
     ctx.stroke() catch {};
     self._surface = sfc;
 }
