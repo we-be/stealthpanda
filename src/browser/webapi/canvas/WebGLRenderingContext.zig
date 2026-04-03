@@ -161,48 +161,54 @@ pub const Extension = union(enum) {
 
 /// Returns WebGL parameters. Real WebGL returns polymorphic types but we
 /// return strings for bridge compatibility. Bot detection primarily checks
-/// UNMASKED_VENDOR_WEBGL (0x9245) and UNMASKED_RENDERER_WEBGL (0x9246).
-pub fn getParameter(_: *const WebGLRenderingContext, pname: u32) []const u8 {
+/// Returns WebGL parameters with correct JavaScript types.
+/// In Chrome, getParameter returns numbers for numeric params, strings for
+/// string params, and null for unknown. CF fingerprinting checks typeof.
+pub const WebGLParam = union(enum) {
+    int: i32,
+    string: []const u8,
+    boolean: bool,
+    null_val,
+};
+
+pub fn getParameter(_: *const WebGLRenderingContext, pname: u32) WebGLParam {
     return switch (pname) {
-        // UNMASKED_VENDOR_WEBGL — GPU vendor via WEBGL_debug_renderer_info
-        0x9245 => "Google Inc. (NVIDIA)",
-        // UNMASKED_RENDERER_WEBGL — GPU renderer via WEBGL_debug_renderer_info
-        0x9246 => "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
-        // VENDOR
-        0x1F00 => "WebKit",
-        // RENDERER
-        0x1F01 => "WebKit WebGL",
-        // VERSION
-        0x1F02 => "WebGL 1.0 (OpenGL ES 2.0 Chromium)",
-        // SHADING_LANGUAGE_VERSION
-        0x8B8C => "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)",
-        // MAX_TEXTURE_SIZE
-        0x0D33 => "16384",
-        // MAX_RENDERBUFFER_SIZE
-        0x84E8 => "16384",
-        // MAX_VIEWPORT_DIMS — would be an array, return as string
-        0x0D3A => "32767,32767",
-        // MAX_VERTEX_ATTRIBS
-        0x8869 => "16",
-        // MAX_VERTEX_UNIFORM_VECTORS
-        0x8DFB => "4096",
-        // MAX_VARYING_VECTORS
-        0x8DFC => "30",
-        // MAX_FRAGMENT_UNIFORM_VECTORS
-        0x8DFD => "1024",
-        // MAX_TEXTURE_IMAGE_UNITS
-        0x8872 => "16",
-        // MAX_VERTEX_TEXTURE_IMAGE_UNITS
-        0x8B4C => "16",
-        // MAX_COMBINED_TEXTURE_IMAGE_UNITS
-        0x8B4D => "32",
-        // MAX_CUBE_MAP_TEXTURE_SIZE
-        0x851C => "16384",
-        // ALIASED_LINE_WIDTH_RANGE
-        0x846E => "1,1",
-        // ALIASED_POINT_SIZE_RANGE
-        0x846D => "1,1024",
-        else => "",
+        // String parameters
+        0x9245 => .{ .string = "Google Inc. (NVIDIA)" }, // UNMASKED_VENDOR_WEBGL
+        0x9246 => .{ .string = "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)" }, // UNMASKED_RENDERER_WEBGL
+        0x1F00 => .{ .string = "WebKit" }, // VENDOR
+        0x1F01 => .{ .string = "WebKit WebGL" }, // RENDERER
+        0x1F02 => .{ .string = "WebGL 1.0 (OpenGL ES 2.0 Chromium)" }, // VERSION
+        0x8B8C => .{ .string = "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)" }, // SHADING_LANGUAGE_VERSION
+        // Integer parameters
+        0x0D33 => .{ .int = 16384 }, // MAX_TEXTURE_SIZE
+        0x84E8 => .{ .int = 16384 }, // MAX_RENDERBUFFER_SIZE
+        0x8869 => .{ .int = 16 }, // MAX_VERTEX_ATTRIBS
+        0x8DFB => .{ .int = 4096 }, // MAX_VERTEX_UNIFORM_VECTORS
+        0x8DFC => .{ .int = 30 }, // MAX_VARYING_VECTORS
+        0x8DFD => .{ .int = 1024 }, // MAX_FRAGMENT_UNIFORM_VECTORS
+        0x8872 => .{ .int = 16 }, // MAX_TEXTURE_IMAGE_UNITS
+        0x8B4C => .{ .int = 16 }, // MAX_VERTEX_TEXTURE_IMAGE_UNITS
+        0x8B4D => .{ .int = 32 }, // MAX_COMBINED_TEXTURE_IMAGE_UNITS
+        0x851C => .{ .int = 16384 }, // MAX_CUBE_MAP_TEXTURE_SIZE
+        0x0D55 => .{ .int = 8 }, // STENCIL_BITS
+        0x0D54 => .{ .int = 24 }, // DEPTH_BITS
+        0x0D52 => .{ .int = 8 }, // RED_BITS
+        0x0D53 => .{ .int = 8 }, // GREEN_BITS
+        0x0D56 => .{ .int = 8 }, // BLUE_BITS
+        0x0D57 => .{ .int = 8 }, // ALPHA_BITS
+        0x0B71 => .{ .int = 4 }, // DEPTH_FUNC (GL_LESS)
+        0x0B72 => .{ .boolean = true }, // DEPTH_WRITEMASK
+        0x0BE2 => .{ .boolean = false }, // BLEND
+        0x0B44 => .{ .boolean = false }, // CULL_FACE
+        0x0B90 => .{ .boolean = false }, // DITHER (off by default in WebGL)
+        0x846E => .{ .int = 1 }, // ALIASED_LINE_WIDTH_RANGE (simplified)
+        0x846D => .{ .int = 1 }, // ALIASED_POINT_SIZE_RANGE (simplified)
+        0x0BA2 => .{ .int = 0 }, // ACTIVE_TEXTURE offset
+        0x8038 => .{ .int = 0 }, // SAMPLE_COVERAGE_VALUE
+        0x80A9 => .{ .int = 4 }, // SAMPLE_BUFFERS
+        0x80AA => .{ .int = 4 }, // SAMPLES
+        else => .null_val,
     };
 }
 
