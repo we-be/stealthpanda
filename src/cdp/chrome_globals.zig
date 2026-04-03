@@ -561,6 +561,36 @@ pub const script: [:0]const u8 =
     \\    'webkitSpeechRecognition','webkitSpeechRecognitionError',
     \\    'webkitSpeechRecognitionEvent',
     \\  ];
+    \\  // Hide extra properties from for...in (make non-enumerable)
+    \\  var hideFromEnum = ['FontFaceSet','WEBGL_debug_renderer_info','WEBGL_lose_context',
+    \\    'clearImmediate','setImmediate','onpaste',
+    \\    'ontouchstart','ontouchend','ontouchmove','ontouchcancel'];
+    \\  for (var i = 0; i < hideFromEnum.length; i++) {
+    \\    if (hideFromEnum[i] in window) {
+    \\      try { Object.defineProperty(window, hideFromEnum[i], {
+    \\        value: window[hideFromEnum[i]], enumerable: false, configurable: true, writable: true
+    \\      }); } catch(e) {}
+    \\    }
+    \\  }
+    \\  // Add missing Chrome-specific properties
+    \\  if (typeof window.styleMedia === 'undefined') window.styleMedia = {type: 'screen', matchMedium: function() { return true; }};
+    \\  if (typeof window.trustedTypes === 'undefined') {
+    \\    window.trustedTypes = {createPolicy: function() { return {}; }, isHTML: function() { return false; },
+    \\      isScript: function() { return false; }, isScriptURL: function() { return false; },
+    \\      emptyHTML: '', emptyScript: '', defaultPolicy: null};
+    \\  }
+    \\  // Make sure BroadcastChannel, caches, indexedDB are own+enumerable
+    \\  if (typeof window.caches !== 'undefined' && !window.hasOwnProperty('caches')) {
+    \\    try { Object.defineProperty(window, 'caches', {
+    \\      value: window.caches, enumerable: true, configurable: true
+    \\    }); } catch(e) {}
+    \\  }
+    \\  if (typeof window.indexedDB !== 'undefined' && !window.hasOwnProperty('indexedDB')) {
+    \\    try { Object.defineProperty(window, 'indexedDB', {
+    \\      value: window.indexedDB, enumerable: true, configurable: true
+    \\    }); } catch(e) {}
+    \\  }
+    \\
     \\  for (var i = 0; i < winMethods.length; i++) {
     \\    if (typeof window[winMethods[i]] === 'undefined') {
     \\      var f = function() {};
