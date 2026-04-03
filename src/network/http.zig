@@ -69,6 +69,9 @@ pub const Headers = struct {
         try headers.add(http_headers.sec_ch_ua_header);
         try headers.add(http_headers.sec_ch_ua_mobile_header);
         try headers.add(http_headers.sec_ch_ua_platform_header);
+        // Chrome-like Accept and navigation headers
+        try headers.add("Accept-Language: en-US,en;q=0.9");
+        try headers.add("Upgrade-Insecure-Requests: 1");
         return headers;
     }
 
