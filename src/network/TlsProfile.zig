@@ -3,6 +3,7 @@
 // (JA3/JA4) to verify the claimed browser identity. These profiles configure
 // libcurl to match real browser TLS handshakes.
 
+const std = @import("std");
 const libcurl = @import("../sys/libcurl.zig");
 
 // BoringSSL functions for configuring TLS extensions
@@ -25,17 +26,60 @@ fn sslCtxCallback(_: ?*libcurl.Curl, ssl_ctx: ?*anyopaque, _: ?*anyopaque) callc
     boringssl.SSL_CTX_enable_ocsp_stapling(ctx);
     // Enable SCT (adds signed_certificate_timestamp extension)
     boringssl.SSL_CTX_enable_signed_cert_timestamps(ctx);
-    // Certificate compression (brotli) - disabled for now as it requires
-    // a real brotli decompressor. The status_request and SCT extensions
-    // are more impactful for the JA3 fingerprint.
-    // TODO: Add brotli decompression for cert compression support.
+    // Enable certificate compression with brotli (adds compress_certificate extension)
+    _ = boringssl.SSL_CTX_add_cert_compression_alg(ctx, 2, null, certDecompress);
     return 0; // CURLE_OK
 }
 
-/// Dummy brotli decompress function for certificate compression
-/// We don't actually need to decompress — we just need the extension in ClientHello
-fn dummyDecompress(_: ?*anyopaque, _: ?*anyopaque, _: usize, _: [*c]const u8, _: usize) callconv(.c) c_int {
-    return 0; // success (won't actually be called in practice)
+// Brotli decompression for BoringSSL certificate compression
+const brotli = struct {
+    const BrotliDecoderState = anyopaque;
+    const BROTLI_DECODER_RESULT_SUCCESS: c_int = 1;
+
+    extern fn BrotliDecoderCreateInstance(
+        alloc_func: ?*const anyopaque,
+        free_func: ?*const anyopaque,
+        user_data: ?*anyopaque,
+    ) ?*BrotliDecoderState;
+
+    extern fn BrotliDecoderDestroyInstance(state: *BrotliDecoderState) void;
+
+    extern fn BrotliDecoderDecompress(
+        encoded_size: usize,
+        encoded_buffer: [*]const u8,
+        decoded_size: *usize,
+        decoded_buffer: [*]u8,
+    ) c_int;
+};
+
+/// BoringSSL cert decompression callback using brotli
+/// Signature: int (*)(SSL *ssl, CRYPTO_BUFFER **out, size_t uncompressed_len,
+///                    const uint8_t *in, size_t in_len)
+fn certDecompress(
+    _: ?*anyopaque, // ssl
+    out: ?*?*anyopaque, // CRYPTO_BUFFER **out
+    uncompressed_len: usize,
+    in_data: [*c]const u8,
+    in_len: usize,
+) callconv(.c) c_int {
+    // Allocate output buffer via CRYPTO_BUFFER_new
+    const CRYPTO_BUFFER_new = @extern(*const fn ([*]const u8, usize, ?*anyopaque) callconv(.c) ?*anyopaque, .{ .name = "CRYPTO_BUFFER_new" });
+
+    // Decompress using brotli
+    var decoded_size: usize = uncompressed_len;
+    const buf = std.heap.c_allocator.alloc(u8, uncompressed_len) catch return 0;
+    defer std.heap.c_allocator.free(buf);
+
+    const result = brotli.BrotliDecoderDecompress(in_len, in_data, &decoded_size, buf.ptr);
+    if (result != brotli.BROTLI_DECODER_RESULT_SUCCESS) return 0;
+    if (decoded_size != uncompressed_len) return 0;
+
+    // Create CRYPTO_BUFFER with decompressed data
+    const cb = CRYPTO_BUFFER_new(buf.ptr, decoded_size, null);
+    if (cb == null) return 0;
+
+    if (out) |o| o.* = cb;
+    return 1; // success
 }
 
 pub const TlsProfile = struct {
@@ -94,7 +138,6 @@ pub const TlsProfile = struct {
     pub const default = chrome_131;
 
     pub fn fromName(name: []const u8) ?*const TlsProfile {
-        const std = @import("std");
         if (std.mem.eql(u8, name, "chrome") or std.mem.eql(u8, name, "chrome_131")) return &chrome_131;
         if (std.mem.eql(u8, name, "firefox") or std.mem.eql(u8, name, "firefox_133")) return &firefox_133;
         return null;
