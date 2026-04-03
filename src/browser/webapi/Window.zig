@@ -455,8 +455,6 @@ pub fn getComputedStyle(_: *const Window, element: *Element, pseudo_element: ?[]
 }
 
 pub fn postMessage(self: *Window, message: js.Value.Temp, target_origin: ?[]const u8, page: *Page) !void {
-    // For now, we ignore targetOrigin checking and just dispatch the message
-    // In a full implementation, we would validate the origin
     _ = target_origin;
 
     // self = the window that will get the message
