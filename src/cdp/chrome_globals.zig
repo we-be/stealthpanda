@@ -504,7 +504,9 @@ pub const script: [:0]const u8 =
     \\  var _origGOPN = Object.getOwnPropertyNames;
     \\  Object.getOwnPropertyNames = function(obj) {
     \\    var names = _origGOPN.call(Object, obj);
-    \\    if (obj === window || (obj && obj.constructor === Window)) {
+    \\    // Filter non-Chrome types from any Window object (main or iframe)
+    \\    if (obj === window || obj === self ||
+    \\        (typeof obj === 'object' && obj !== null && 'document' in obj && 'navigator' in obj)) {
     \\      names = names.filter(function(n) { return !_nonChromeTypes.has(n); });
     \\    }
     \\    return names;
