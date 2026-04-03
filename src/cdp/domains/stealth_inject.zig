@@ -57,7 +57,11 @@ pub const script: [:0]const u8 =
     \\}
     \\Function.prototype.toString = function() {
     \\  if (fakeNatives.has(this)) return fakeNatives.get(this);
-    \\  return nativeToString.call(this);
+    \\  var result = nativeToString.call(this);
+    \\  if (typeof result !== 'string') {
+    \\    return 'function ' + (this.name || '') + '() { [native code] }';
+    \\  }
+    \\  return result;
     \\};
     \\makeNative(Function.prototype.toString, 'toString');
     \\window._makeNative = makeNative;
@@ -139,26 +143,36 @@ pub const script: [:0]const u8 =
     \\  });
     \\}
     \\
-    // Stub missing Document methods that Chrome has
+    // Make all stealth inject stubs look native
+    \\if (typeof Notification === 'function') makeNative(Notification, 'Notification');
+    \\if (typeof BroadcastChannel === 'function' && BroadcastChannel.toString().indexOf('native') < 0) makeNative(BroadcastChannel, 'BroadcastChannel');
+    \\if (typeof RTCPeerConnection === 'function' && RTCPeerConnection.toString().indexOf('native') < 0) makeNative(RTCPeerConnection, 'RTCPeerConnection');
+    \\
+    // Stub missing Document methods that Chrome has (all made native)
     \\(function() {
     \\  var dp = Document.prototype;
-    \\  var noop = function() {};
-    \\  var noopRet = function() { return null; };
-    \\  if (!dp.writeln) dp.writeln = function() { document.write.apply(document, arguments); };
-    \\  if (!dp.clear) dp.clear = noop;
-    \\  if (!dp.execCommand) dp.execCommand = function() { return false; };
-    \\  if (!dp.queryCommandEnabled) dp.queryCommandEnabled = function() { return false; };
-    \\  if (!dp.queryCommandIndeterm) dp.queryCommandIndeterm = function() { return false; };
-    \\  if (!dp.queryCommandState) dp.queryCommandState = function() { return false; };
-    \\  if (!dp.queryCommandSupported) dp.queryCommandSupported = function() { return false; };
-    \\  if (!dp.queryCommandValue) dp.queryCommandValue = function() { return ''; };
-    \\  if (!dp.caretRangeFromPoint) dp.caretRangeFromPoint = noopRet;
-    \\  if (!dp.createExpression) dp.createExpression = noopRet;
-    \\  if (!dp.createNSResolver) dp.createNSResolver = noopRet;
-    \\  if (!dp.evaluate) dp.evaluate = noopRet;
-    \\  if (!dp.exitFullscreen) dp.exitFullscreen = function() { return Promise.resolve(); };
-    \\  if (!dp.exitPointerLock) dp.exitPointerLock = noop;
-    \\  if (!dp.getAnimations) dp.getAnimations = function() { return []; };
+    \\  var mn = makeNative;
+    \\  function stub(name, fn) { if (!dp[name]) { dp[name] = fn; mn(fn, name); } }
+    \\  stub('writeln', function() { document.write.apply(document, arguments); });
+    \\  stub('clear', function() {});
+    \\  stub('execCommand', function() { return false; });
+    \\  stub('queryCommandEnabled', function() { return false; });
+    \\  stub('queryCommandIndeterm', function() { return false; });
+    \\  stub('queryCommandState', function() { return false; });
+    \\  stub('queryCommandSupported', function() { return false; });
+    \\  stub('queryCommandValue', function() { return ''; });
+    \\  stub('caretRangeFromPoint', function() { return null; });
+    \\  stub('createExpression', function() { return null; });
+    \\  stub('createNSResolver', function() { return null; });
+    \\  stub('evaluate', function() { return null; });
+    \\  stub('exitFullscreen', function() { return Promise.resolve(); });
+    \\  stub('exitPointerLock', function() {});
+    \\  stub('getAnimations', function() { return []; });
+    \\  stub('captureEvents', function() {});
+    \\  stub('releaseEvents', function() {});
+    \\  stub('exitPictureInPicture', function() { return Promise.resolve(); });
+    \\  stub('hasStorageAccess', function() { return Promise.resolve(true); });
+    \\  stub('requestStorageAccess', function() { return Promise.resolve(); });
     \\})();
     \\
     // Patch contentWindow to add missing Chrome properties
@@ -275,4 +289,8 @@ pub const script: [:0]const u8 =
     \\    return worker;
     \\  };
     \\})();
+    \\
+    // Make Blob and Worker wrappers look native
+    \\if (typeof Blob === 'function') makeNative(Blob, 'Blob');
+    \\if (typeof Worker === 'function') makeNative(Worker, 'Worker');
 ;

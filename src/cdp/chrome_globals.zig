@@ -622,14 +622,16 @@ pub const script: [:0]const u8 =
     \\    }
     \\  }
     \\  // getGamepads, vibrate, getUserMedia
-    \\  if (!nav.getGamepads) nav.getGamepads = function() { return []; };
-    \\  if (!nav.vibrate) nav.vibrate = function() { return true; };
-    \\  if (!nav.getUserMedia) nav.getUserMedia = function() {};
-    \\  if (!nav.requestMediaKeySystemAccess) nav.requestMediaKeySystemAccess = function() { return Promise.reject(new Error('not supported')); };
-    \\  if (!nav.requestMIDIAccess) nav.requestMIDIAccess = function() { return Promise.reject(new Error('not supported')); };
-    \\  if (!nav.getInstalledRelatedApps) nav.getInstalledRelatedApps = function() { return Promise.resolve([]); };
-    \\  if (!nav.setAppBadge) nav.setAppBadge = function() { return Promise.resolve(); };
-    \\  if (!nav.clearAppBadge) nav.clearAppBadge = function() { return Promise.resolve(); };
+    \\  // Navigator method stubs (all made native)
+    \\  function navStub(name, fn) { if (!nav[name]) { nav[name] = fn; mn(fn, name); } }
+    \\  navStub('getGamepads', function() { return []; });
+    \\  navStub('vibrate', function() { return true; });
+    \\  navStub('getUserMedia', function() {});
+    \\  navStub('requestMediaKeySystemAccess', function() { return Promise.reject(new Error('not supported')); });
+    \\  navStub('requestMIDIAccess', function() { return Promise.reject(new Error('not supported')); });
+    \\  navStub('getInstalledRelatedApps', function() { return Promise.resolve([]); });
+    \\  navStub('setAppBadge', function() { return Promise.resolve(); });
+    \\  navStub('clearAppBadge', function() { return Promise.resolve(); });
     \\
     \\  // Add missing Document properties
     \\  var doc = document;
