@@ -14,8 +14,10 @@ const Worker = @This();
 
 _pad: bool = false,
 
-pub fn init(_: []const u8, _: *Page) !*Worker {
-    return error.NotSupported;
+pub fn init(_: []const u8, page: *Page) !*Worker {
+    // Return a stub Worker object — the stealth inject JS polyfill
+    // overrides `new Worker()` at the JS level
+    return page._factory.create(Worker{ ._pad = false });
 }
 
 pub fn postMessage(_: *const Worker) void {}
@@ -30,7 +32,7 @@ pub const JsApi = struct {
         pub var class_id: bridge.ClassId = undefined;
     };
 
-    pub const constructor = bridge.constructor(Worker.init, .{ .dom_exception = true });
+    pub const constructor = bridge.constructor(Worker.init, .{});
     pub const postMessage = bridge.function(Worker.postMessage, .{ .noop = true });
     pub const terminate = bridge.function(Worker.terminate, .{ .noop = true });
 };

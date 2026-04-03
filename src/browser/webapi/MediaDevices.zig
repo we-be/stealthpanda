@@ -22,7 +22,6 @@ pub const JsApi = struct {
         pub const name = "MediaDevices";
         pub const prototype_chain = bridge.prototypeChain();
         pub var class_id: bridge.ClassId = undefined;
-        pub const enumerable = false;
     };
 
     pub const enumerateDevices = bridge.function(MediaDevices.enumerateDevices, .{});

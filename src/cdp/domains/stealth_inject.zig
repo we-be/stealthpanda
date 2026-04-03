@@ -64,7 +64,8 @@ pub const script: [:0]const u8 =
     \\  return result;
     \\};
     \\makeNative(Function.prototype.toString, 'toString');
-    \\window._makeNative = makeNative;
+    \\Object.defineProperty(window, '_makeNative', {value: makeNative, enumerable: false, configurable: true});
+    \\Object.defineProperty(window, 'makeNative', {value: makeNative, enumerable: false, configurable: true});
     \\
     // Block unsupported_browser reject (capture phase, before Turnstile handler)
     \\window.addEventListener('message', function(e) {

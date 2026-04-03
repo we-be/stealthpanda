@@ -530,9 +530,9 @@ pub const script: [:0]const u8 =
     \\    }
     \\  }
     \\
-    \\  // Also add Window instance properties that Chrome has
-    \\  var winProps = [
-    \\    'closed','defaultStatus','defaultstatus','external','frameElement',
+    \\  // Window instance properties and methods (force-set as own props)
+    \\  var winNullProps = [
+    \\    'closed','external','frameElement',
     \\    'frames','length','locationbar','menubar','name',
     \\    'offscreenBuffering','opener','outerHeight','outerWidth',
     \\    'pageXOffset','pageYOffset','parent','personalbar',
@@ -541,12 +541,34 @@ pub const script: [:0]const u8 =
     \\    'statusbar','toolbar','top','window',
     \\    'originAgentCluster','scheduler','navigation',
     \\    'cookieStore','documentPictureInPicture','launchQueue',
-    \\    'sharedStorage','fence',
+    \\    'sharedStorage','fence','viewport','credentialless','crashReport',
     \\  ];
-    \\
-    \\  for (var i = 0; i < winProps.length; i++) {
-    \\    if (!(winProps[i] in window)) {
-    \\      try { window[winProps[i]] = null; } catch(e) {}
+    \\  for (var i = 0; i < winNullProps.length; i++) {
+    \\    if (!(winNullProps[i] in window)) {
+    \\      try { window[winNullProps[i]] = null; } catch(e) {}
+    \\    }
+    \\  }
+    \\  // Window methods that must exist as native functions
+    \\  var winMethods = [
+    \\    'blur','captureEvents','close','createImageBitmap','fetchLater',
+    \\    'find','focus','getScreenDetails','moveBy','moveTo',
+    \\    'open','print','queryLocalFonts','releaseEvents',
+    \\    'resizeBy','resizeTo','showDirectoryPicker','showOpenFilePicker',
+    \\    'showSaveFilePicker','stop','when',
+    \\    'webkitMediaStream','webkitRTCPeerConnection',
+    \\    'webkitRequestFileSystem','webkitResolveLocalFileSystemURL',
+    \\    'webkitSpeechGrammar','webkitSpeechGrammarList',
+    \\    'webkitSpeechRecognition','webkitSpeechRecognitionError',
+    \\    'webkitSpeechRecognitionEvent',
+    \\  ];
+    \\  for (var i = 0; i < winMethods.length; i++) {
+    \\    if (typeof window[winMethods[i]] === 'undefined') {
+    \\      var f = function() {};
+    \\      try {
+    \\        Object.defineProperty(f, 'name', {value: winMethods[i]});
+    \\        window[winMethods[i]] = f;
+    \\        mn(f, winMethods[i]);
+    \\      } catch(e) {}
     \\    }
     \\  }
     \\
