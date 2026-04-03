@@ -175,6 +175,8 @@ pub const CurlOption = enum(c.CURLoption) {
     http_version = c.CURLOPT_HTTP_VERSION,
     ssl_verifystatus = c.CURLOPT_SSL_VERIFYSTATUS,
     ssl_options = c.CURLOPT_SSL_OPTIONS,
+    ssl_ctx_function = c.CURLOPT_SSL_CTX_FUNCTION,
+    ssl_ctx_data = c.CURLOPT_SSL_CTX_DATA,
 };
 
 pub const CurlMOption = enum(c.CURLMoption) {
@@ -608,12 +610,20 @@ pub fn curl_easy_setopt(easy: *Curl, comptime option: CurlOption, value: anytype
         .private,
         .header_data,
         .write_data,
+        .ssl_ctx_data,
         => blk: {
             const ptr: ?*anyopaque = switch (@typeInfo(@TypeOf(value))) {
                 .null => null,
                 else => @ptrCast(value),
             };
             break :blk c.curl_easy_setopt(easy, opt, ptr);
+        },
+
+        .ssl_ctx_function => blk: {
+            // CURLOPT_SSL_CTX_FUNCTION: callback to customize SSL context
+            // Signature: CURLcode (*)(CURL *curl, void *ssl_ctx, void *userptr)
+            const cb: ?*const fn (?*Curl, ?*anyopaque, ?*anyopaque) callconv(.c) c_uint = value;
+            break :blk c.curl_easy_setopt(easy, opt, cb);
         },
 
         .debug_function => blk: {
