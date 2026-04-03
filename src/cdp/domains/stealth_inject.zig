@@ -3,24 +3,10 @@
 // Patches JS APIs that bot detectors probe to detect automation.
 
 pub const script: [:0]const u8 =
-    // Test: does accessing unknown properties on window throw?
-    \\(function() {
-    \\  var tests = [];
-    \\  try { var x = window.nonExistentProp; tests.push('unk:' + typeof x); } catch(e) { tests.push('unk:THROW:' + e.message); }
-    \\  try { var x = window['$_cdc_asdjflasutopfhvcZLmcfl_']; tests.push('cdc:' + typeof x); } catch(e) { tests.push('cdc:THROW:' + e.message); }
-    \\  try { var x = self.nonExistent2; tests.push('self:' + typeof x); } catch(e) { tests.push('self:THROW:' + e.message); }
-    \\  try { var g = (0, eval)('this'); var x = g.nonExistent3; tests.push('eval_this:' + typeof x); } catch(e) { tests.push('eval_this:THROW:' + e.message); }
-    \\  // Test: does our engine's global have any property getters that throw?
-    \\  try { var keys = Object.getOwnPropertyNames(window).length; tests.push('wkeys:' + keys); } catch(e) { tests.push('wkeys:THROW:' + e.message); }
-    \\  setTimeout(function() {
-    \\    var el = document.createElement('pre');
-    \\    el.id = 'prop-test';
-    \\    el.textContent = tests.join('|');
-    \\    if (document.body) document.body.appendChild(el);
-    \\  }, 100);
-    \\})();
-    \\
-    // CF VM resilience patches
+    // CF VM resilience: safety net for edge cases where the VM's bytecode
+    // references handler table slots with random fill numbers.
+    // The atob fix (097b2c36) resolved the primary cause, but these
+    // patches remain as defense-in-depth.
     \\(function() {
     \\  var _stub = function _s() { return _stub; };
     \\  _stub.bind = function() { return _stub; };
