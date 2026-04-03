@@ -3,26 +3,24 @@
 // Patches JS APIs that bot detectors probe to detect automation.
 
 pub const script: [:0]const u8 =
-    // Intercept property access on non-function values to detect
-    // when the CF VM tries to call .bind() on a number/non-function
+    // CF VM resilience: The orchestrate VM's bytecode sometimes references handler
+    // table slots with random fill numbers instead of handler functions. The VM
+    // calls .bind(this) on numbers which crashes. We patch Number.prototype to
+    // return a self-referencing stub function so subsequent method calls also work.
     \\(function() {
-    \\  // CF VM resilience: The encrypted bytecode VM occasionally accesses handler
-    \\  // table slots that contain random fill numbers instead of handler functions.
-    \\  // This happens when the first bytecode instruction references a slot that
-    \\  // hasn't been assigned a handler. We patch Number.prototype to handle these
-    \\  // cases gracefully instead of crashing with TypeError.
-    \\  (function() {
-    \\    var _noop = function() { return undefined; };
-    \\    var _bindNoop = function() { return _noop; };
-    \\    Object.defineProperty(Number.prototype, 'bind', {value: _bindNoop, writable: true, configurable: true, enumerable: false});
-    \\    Object.defineProperty(Number.prototype, 'call', {value: _noop, writable: true, configurable: true, enumerable: false});
-    \\    Object.defineProperty(Number.prototype, 'apply', {value: _noop, writable: true, configurable: true, enumerable: false});
-    \\    ['pop','shift','splice','push','unshift','indexOf'].forEach(function(m) {
-    \\      if (typeof Number.prototype[m] === 'undefined') {
-    \\        Object.defineProperty(Number.prototype, m, {value: _noop, writable: true, configurable: true, enumerable: false});
-    \\      }
-    \\    });
-    \\  })();
+    \\  var _stub = function _s() { return _stub; };
+    \\  _stub.bind = function() { return _stub; };
+    \\  _stub.call = function() { return _stub; };
+    \\  _stub.apply = function() { return _stub; };
+    \\  Object.defineProperty(Number.prototype, 'bind', {value: function() { return _stub; }, writable: true, configurable: true, enumerable: false});
+    \\  Object.defineProperty(Number.prototype, 'call', {value: function() { return _stub; }, writable: true, configurable: true, enumerable: false});
+    \\  Object.defineProperty(Number.prototype, 'apply', {value: function() { return _stub; }, writable: true, configurable: true, enumerable: false});
+    \\  var _noopArr = function() { return undefined; };
+    \\  ['pop','shift','splice','push','unshift','indexOf'].forEach(function(m) {
+    \\    if (typeof Number.prototype[m] === 'undefined') {
+    \\      Object.defineProperty(Number.prototype, m, {value: _noopArr, writable: true, configurable: true, enumerable: false});
+    \\    }
+    \\  });
     \\})();
     \\
     // Lock navigator.webdriver to false
