@@ -23,6 +23,7 @@ pub const script: [:0]const u8 =
     \\  });
     \\})();
     \\
+    \\
     // Lock navigator.webdriver to false
     \\Object.defineProperty(navigator, 'webdriver', {
     \\  get: () => false, configurable: false, enumerable: true
