@@ -26,6 +26,76 @@ pub const script: [:0]const u8 =
     \\  get: () => false, configurable: false, enumerable: true
     \\});
     \\
+    \\
+    \\
+    // Add missing Navigator properties that CF Turnstile fingerprints
+    \\(function() {
+    \\  var navProps = {
+    \\    productSub: '20030107',
+    \\    vendor: 'Google Inc.',
+    \\    pdfViewerEnabled: true,
+    \\    scheduling: {isInputPending: function() { return false; }},
+    \\    mediaCapabilities: {decodingInfo: function() { return Promise.resolve({supported: true, smooth: true, powerEfficient: true}); }},
+    \\    mediaSession: {metadata: null, playbackState: 'none', setActionHandler: function() {}, setPositionState: function() {}},
+    \\    clipboard: {read: function(){return Promise.resolve([])}, readText: function(){return Promise.resolve('')}, write: function(){return Promise.resolve()}, writeText: function(){return Promise.resolve()}},
+    \\    credentials: {create: function(){return Promise.resolve(null)}, get: function(){return Promise.resolve(null)}, preventSilentAccess: function(){return Promise.resolve()}, store: function(){return Promise.resolve()}},
+    \\    locks: {request: function(){return Promise.resolve()}, query: function(){return Promise.resolve({held:[],pending:[]})}},
+    \\    keyboard: {lock: function(){return Promise.resolve()}, unlock: function(){}},
+    \\    connection: {effectiveType: '4g', rtt: 50, downlink: 10, saveData: false, onchange: null, addEventListener: function(){}, removeEventListener: function(){}},
+    \\    gpu: {requestAdapter: function(){return Promise.resolve(null)}},
+    \\    hid: {getDevices: function(){return Promise.resolve([])}, requestDevice: function(){return Promise.resolve([])}},
+    \\    usb: {getDevices: function(){return Promise.resolve([])}},
+    \\    serial: {getPorts: function(){return Promise.resolve([])}},
+    \\    bluetooth: {getAvailability: function(){return Promise.resolve(false)}},
+    \\    xr: {isSessionSupported: function(){return Promise.resolve(false)}},
+    \\    windowControlsOverlay: {visible: false, getTitlebarAreaRect: function(){return {x:0,y:0,width:0,height:0}}, ongeometrychange: null},
+    \\    ink: {requestPresenter: function(){return Promise.resolve(null)}},
+    \\    virtualKeyboard: {boundingRect: {x:0,y:0,width:0,height:0}, overlaysContent: false, show: function(){}, hide: function(){}, ongeometrychange: null},
+    \\    userActivation: {hasBeenActive: true, isActive: false},
+    \\    getGamepads: function() { return []; },
+    \\    getBattery: function() { return Promise.resolve({charging: true, chargingTime: 0, dischargingTime: Infinity, level: 1, onchargingchange: null, onchargingtimechange: null, ondischargingtimechange: null, onlevelchange: null}); },
+    \\    vibrate: function() { return true; },
+    \\    clearAppBadge: function() { return Promise.resolve(); },
+    \\    setAppBadge: function() { return Promise.resolve(); },
+    \\    getUserMedia: function(c, s, e) { if (e) e(new Error('NotFoundError')); },
+    \\    requestMediaKeySystemAccess: function() { return Promise.reject(new Error('NotSupportedError')); },
+    \\    sendBeacon: function() { return true; },
+    \\    getInstalledRelatedApps: function() { return Promise.resolve([]); },
+    \\  };
+    \\  Object.keys(navProps).forEach(function(k) {
+    \\    if (typeof navigator[k] === 'undefined') {
+    \\      try { Object.defineProperty(navigator, k, {value: navProps[k], writable: true, configurable: true, enumerable: true}); } catch(e) {}
+    \\    }
+    \\  });
+    \\  // Also add missing Document properties
+    \\  var docProps = {
+    \\    pictureInPictureEnabled: false,
+    \\    pictureInPictureElement: null,
+    \\    fullscreenEnabled: true,
+    \\    fullscreen: false,
+    \\    fullscreenElement: null,
+    \\    wasDiscarded: false,
+    \\    featurePolicy: {allowedFeatures: function(){return []}, allowsFeature: function(){return true}, getAllowlistForFeature: function(){return ['*']}},
+    \\    fragmentDirective: {},
+    \\    designMode: 'off',
+    \\    onvisibilitychange: null,
+    \\    onfullscreenchange: null,
+    \\    onfullscreenerror: null,
+    \\    onselectstart: null,
+    \\    onpointerlockchange: null,
+    \\    onpointerlockerror: null,
+    \\    onfreeze: null,
+    \\    onresume: null,
+    \\    onprerenderingchange: null,
+    \\    alinkColor: '', bgColor: '', fgColor: '', linkColor: '', vlinkColor: '',
+    \\  };
+    \\  Object.keys(docProps).forEach(function(k) {
+    \\    if (typeof document[k] === 'undefined') {
+    \\      try { Object.defineProperty(document, k, {value: docProps[k], writable: true, configurable: true, enumerable: true}); } catch(e) {}
+    \\    }
+    \\  });
+    \\})();
+    \\
     // Ensure window.chrome exists with realistic structure
     \\if (!window.chrome) window.chrome = {};
     \\if (!window.chrome.runtime) {
