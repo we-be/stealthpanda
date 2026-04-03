@@ -29,7 +29,7 @@ pub fn init() Performance {
     return .{
         ._time_origin = highResTimestamp(),
         ._entries = .{},
-        ._timing = .{},
+        ._timing = PerformanceTiming.init(),
         ._navigation = .{},
     };
 }
@@ -467,12 +467,71 @@ pub const Measure = struct {
 };
 
 /// PerformanceTiming — Navigation Timing Level 1 (legacy, but widely used).
-/// https://developer.mozilla.org/en-US/docs/Web/API/PerformanceTiming
-/// All properties return 0 as stub values; the object must not be undefined
-/// so that scripts accessing performance.timing.navigationStart don't crash.
+/// Returns realistic Unix timestamps in milliseconds.
+/// CF uses performance.timing.navigationStart for timing analysis.
 pub const PerformanceTiming = struct {
-    // Padding to avoid zero-size struct, which causes identity_map pointer collisions.
     _pad: bool = false,
+    _nav_start: f64 = 0,
+
+    pub fn init() PerformanceTiming {
+        const ts = datetime.timespec();
+        const sec: u64 = @intCast(ts.sec);
+        const nsec: u64 = @intCast(@divTrunc(ts.nsec, 1_000_000));
+        const ms = @as(f64, @floatFromInt(sec)) * 1000.0 + @as(f64, @floatFromInt(nsec));
+        return .{ ._nav_start = ms };
+    }
+
+    pub fn getNavigationStart(self: *const PerformanceTiming) f64 {
+        return self._nav_start;
+    }
+    pub fn getFetchStart(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 1; // 1ms after nav start
+    }
+    pub fn getDomainLookupStart(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 5;
+    }
+    pub fn getDomainLookupEnd(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 15;
+    }
+    pub fn getConnectStart(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 15;
+    }
+    pub fn getConnectEnd(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 50;
+    }
+    pub fn getSecureConnectionStart(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 20;
+    }
+    pub fn getRequestStart(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 50;
+    }
+    pub fn getResponseStart(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 100;
+    }
+    pub fn getResponseEnd(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 150;
+    }
+    pub fn getDomLoading(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 160;
+    }
+    pub fn getDomInteractive(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 200;
+    }
+    pub fn getDomContentLoadedEventStart(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 200;
+    }
+    pub fn getDomContentLoadedEventEnd(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 210;
+    }
+    pub fn getDomComplete(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 300;
+    }
+    pub fn getLoadEventStart(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 300;
+    }
+    pub fn getLoadEventEnd(self: *const PerformanceTiming) f64 {
+        return self._nav_start + 310;
+    }
 
     pub const JsApi = struct {
         pub const bridge = js.Bridge(PerformanceTiming);
@@ -484,27 +543,27 @@ pub const PerformanceTiming = struct {
             pub const empty_with_no_proto = true;
         };
 
-        pub const navigationStart = bridge.property(0.0, .{ .template = false, .readonly = true });
+        pub const navigationStart = bridge.accessor(PerformanceTiming.getNavigationStart, null, .{});
         pub const unloadEventStart = bridge.property(0.0, .{ .template = false, .readonly = true });
         pub const unloadEventEnd = bridge.property(0.0, .{ .template = false, .readonly = true });
         pub const redirectStart = bridge.property(0.0, .{ .template = false, .readonly = true });
         pub const redirectEnd = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const fetchStart = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const domainLookupStart = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const domainLookupEnd = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const connectStart = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const connectEnd = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const secureConnectionStart = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const requestStart = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const responseStart = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const responseEnd = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const domLoading = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const domInteractive = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const domContentLoadedEventStart = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const domContentLoadedEventEnd = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const domComplete = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const loadEventStart = bridge.property(0.0, .{ .template = false, .readonly = true });
-        pub const loadEventEnd = bridge.property(0.0, .{ .template = false, .readonly = true });
+        pub const fetchStart = bridge.accessor(PerformanceTiming.getFetchStart, null, .{});
+        pub const domainLookupStart = bridge.accessor(PerformanceTiming.getDomainLookupStart, null, .{});
+        pub const domainLookupEnd = bridge.accessor(PerformanceTiming.getDomainLookupEnd, null, .{});
+        pub const connectStart = bridge.accessor(PerformanceTiming.getConnectStart, null, .{});
+        pub const connectEnd = bridge.accessor(PerformanceTiming.getConnectEnd, null, .{});
+        pub const secureConnectionStart = bridge.accessor(PerformanceTiming.getSecureConnectionStart, null, .{});
+        pub const requestStart = bridge.accessor(PerformanceTiming.getRequestStart, null, .{});
+        pub const responseStart = bridge.accessor(PerformanceTiming.getResponseStart, null, .{});
+        pub const responseEnd = bridge.accessor(PerformanceTiming.getResponseEnd, null, .{});
+        pub const domLoading = bridge.accessor(PerformanceTiming.getDomLoading, null, .{});
+        pub const domInteractive = bridge.accessor(PerformanceTiming.getDomInteractive, null, .{});
+        pub const domContentLoadedEventStart = bridge.accessor(PerformanceTiming.getDomContentLoadedEventStart, null, .{});
+        pub const domContentLoadedEventEnd = bridge.accessor(PerformanceTiming.getDomContentLoadedEventEnd, null, .{});
+        pub const domComplete = bridge.accessor(PerformanceTiming.getDomComplete, null, .{});
+        pub const loadEventStart = bridge.accessor(PerformanceTiming.getLoadEventStart, null, .{});
+        pub const loadEventEnd = bridge.accessor(PerformanceTiming.getLoadEventEnd, null, .{});
     };
 };
 

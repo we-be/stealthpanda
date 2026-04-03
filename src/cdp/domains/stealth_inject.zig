@@ -87,6 +87,27 @@ pub const script: [:0]const u8 =
     \\    } catch(e) {}
     \\  }
     \\})();
+    // Fix performance.timing — all timestamps should be realistic Unix timestamps
+    \\(function() {
+    \\  try {
+    \\    var t = performance.timing;
+    \\    var now = Date.now();
+    \\    var offsets = {
+    \\      navigationStart: 0, unloadEventStart: 0, unloadEventEnd: 0,
+    \\      redirectStart: 0, redirectEnd: 0, fetchStart: 1,
+    \\      domainLookupStart: 5, domainLookupEnd: 15,
+    \\      connectStart: 15, connectEnd: 50, secureConnectionStart: 20,
+    \\      requestStart: 50, responseStart: 100, responseEnd: 150,
+    \\      domLoading: 160, domInteractive: 200,
+    \\      domContentLoadedEventStart: 200, domContentLoadedEventEnd: 210,
+    \\      domComplete: 300, loadEventStart: 300, loadEventEnd: 310
+    \\    };
+    \\    Object.keys(offsets).forEach(function(key) {
+    \\      var val = offsets[key] === 0 && key !== 'navigationStart' ? 0 : now - 500 + offsets[key];
+    \\      try { Object.defineProperty(t, key, {value: val, writable: true, configurable: true}); } catch(e) {}
+    \\    });
+    \\  } catch(e) {}
+    \\})();
     \\
     // Lock navigator.webdriver to false
     \\Object.defineProperty(navigator, 'webdriver', {
