@@ -1044,6 +1044,8 @@ pub const JsApi = struct {
 
     pub const innerWidth = bridge.accessor(Window.getInnerWidth, null, .{});
     pub const innerHeight = bridge.accessor(Window.getInnerHeight, null, .{});
+    pub const outerWidth = bridge.accessor(Window.getInnerWidth, null, .{});
+    pub const outerHeight = bridge.accessor(Window.getInnerHeight, null, .{});
     pub const chrome = bridge.accessor(Window.getChrome, null, .{});
     pub const speechSynthesis = bridge.accessor(Window.getSpeechSynthesis, null, .{});
     pub const devicePixelRatio = bridge.property(1, .{ .template = false });

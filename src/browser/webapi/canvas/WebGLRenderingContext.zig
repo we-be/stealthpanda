@@ -247,7 +247,129 @@ pub const JsApi = struct {
     pub const getParameter = bridge.function(WebGLRenderingContext.getParameter, .{});
     pub const getExtension = bridge.function(WebGLRenderingContext.getExtension, .{});
     pub const getSupportedExtensions = bridge.function(WebGLRenderingContext.getSupportedExtensions, .{});
+
+    // WebGL constants — these must be properties on the context object
+    // so that JS can do `gl.getParameter(gl.MAX_TEXTURE_SIZE)`
+    pub const DEPTH_BUFFER_BIT = bridge.property(@as(u32, 0x00000100), .{ .template = true });
+    pub const STENCIL_BUFFER_BIT = bridge.property(@as(u32, 0x00000400), .{ .template = true });
+    pub const COLOR_BUFFER_BIT = bridge.property(@as(u32, 0x00004000), .{ .template = true });
+    pub const POINTS = bridge.property(@as(u32, 0x0000), .{ .template = true });
+    pub const LINES = bridge.property(@as(u32, 0x0001), .{ .template = true });
+    pub const LINE_LOOP = bridge.property(@as(u32, 0x0002), .{ .template = true });
+    pub const LINE_STRIP = bridge.property(@as(u32, 0x0003), .{ .template = true });
+    pub const TRIANGLES = bridge.property(@as(u32, 0x0004), .{ .template = true });
+    pub const TRIANGLE_STRIP = bridge.property(@as(u32, 0x0005), .{ .template = true });
+    pub const TRIANGLE_FAN = bridge.property(@as(u32, 0x0006), .{ .template = true });
+    pub const ZERO = bridge.property(@as(u32, 0), .{ .template = true });
+    pub const ONE = bridge.property(@as(u32, 1), .{ .template = true });
+    pub const SRC_COLOR = bridge.property(@as(u32, 0x0300), .{ .template = true });
+    pub const SRC_ALPHA = bridge.property(@as(u32, 0x0302), .{ .template = true });
+    pub const DST_ALPHA = bridge.property(@as(u32, 0x0304), .{ .template = true });
+    pub const DST_COLOR = bridge.property(@as(u32, 0x0306), .{ .template = true });
+    pub const CULL_FACE = bridge.property(@as(u32, 0x0B44), .{ .template = true });
+    pub const BLEND = bridge.property(@as(u32, 0x0BE2), .{ .template = true });
+    pub const DITHER = bridge.property(@as(u32, 0x0BD0), .{ .template = true });
+    pub const DEPTH_TEST = bridge.property(@as(u32, 0x0B71), .{ .template = true });
+    pub const SCISSOR_TEST = bridge.property(@as(u32, 0x0C11), .{ .template = true });
+    pub const STENCIL_TEST = bridge.property(@as(u32, 0x0B90), .{ .template = true });
+    pub const NO_ERROR = bridge.property(@as(u32, 0), .{ .template = true });
+    pub const INVALID_ENUM = bridge.property(@as(u32, 0x0500), .{ .template = true });
+    pub const INVALID_VALUE = bridge.property(@as(u32, 0x0501), .{ .template = true });
+    pub const INVALID_OPERATION = bridge.property(@as(u32, 0x0502), .{ .template = true });
+    pub const OUT_OF_MEMORY = bridge.property(@as(u32, 0x0505), .{ .template = true });
+    pub const CW = bridge.property(@as(u32, 0x0900), .{ .template = true });
+    pub const CCW = bridge.property(@as(u32, 0x0901), .{ .template = true });
+    pub const LINE_WIDTH = bridge.property(@as(u32, 0x0B21), .{ .template = true });
+    pub const FRONT = bridge.property(@as(u32, 0x0404), .{ .template = true });
+    pub const BACK = bridge.property(@as(u32, 0x0405), .{ .template = true });
+    pub const FRONT_AND_BACK = bridge.property(@as(u32, 0x0408), .{ .template = true });
+    pub const TEXTURE_2D = bridge.property(@as(u32, 0x0DE1), .{ .template = true });
+    pub const TEXTURE0 = bridge.property(@as(u32, 0x84C0), .{ .template = true });
+    pub const BYTE = bridge.property(@as(u32, 0x1400), .{ .template = true });
+    pub const UNSIGNED_BYTE = bridge.property(@as(u32, 0x1401), .{ .template = true });
+    pub const SHORT = bridge.property(@as(u32, 0x1402), .{ .template = true });
+    pub const UNSIGNED_SHORT = bridge.property(@as(u32, 0x1403), .{ .template = true });
+    pub const INT = bridge.property(@as(u32, 0x1404), .{ .template = true });
+    pub const UNSIGNED_INT = bridge.property(@as(u32, 0x1405), .{ .template = true });
+    pub const FLOAT = bridge.property(@as(u32, 0x1406), .{ .template = true });
+    pub const RGBA = bridge.property(@as(u32, 0x1908), .{ .template = true });
+    pub const RGB = bridge.property(@as(u32, 0x1907), .{ .template = true });
+    pub const ALPHA = bridge.property(@as(u32, 0x1906), .{ .template = true });
+    pub const LUMINANCE = bridge.property(@as(u32, 0x1909), .{ .template = true });
+    pub const NEAREST = bridge.property(@as(u32, 0x2600), .{ .template = true });
+    pub const LINEAR = bridge.property(@as(u32, 0x2601), .{ .template = true });
+    pub const TEXTURE_MAG_FILTER = bridge.property(@as(u32, 0x2800), .{ .template = true });
+    pub const TEXTURE_MIN_FILTER = bridge.property(@as(u32, 0x2801), .{ .template = true });
+    pub const TEXTURE_WRAP_S = bridge.property(@as(u32, 0x2802), .{ .template = true });
+    pub const TEXTURE_WRAP_T = bridge.property(@as(u32, 0x2803), .{ .template = true });
+    pub const REPEAT = bridge.property(@as(u32, 0x2901), .{ .template = true });
+    pub const CLAMP_TO_EDGE = bridge.property(@as(u32, 0x812F), .{ .template = true });
+    pub const FRAMEBUFFER = bridge.property(@as(u32, 0x8D40), .{ .template = true });
+    pub const RENDERBUFFER = bridge.property(@as(u32, 0x8D41), .{ .template = true });
+    pub const COLOR_ATTACHMENT0 = bridge.property(@as(u32, 0x8CE0), .{ .template = true });
+    pub const DEPTH_ATTACHMENT = bridge.property(@as(u32, 0x8D00), .{ .template = true });
+    pub const STENCIL_ATTACHMENT = bridge.property(@as(u32, 0x8D20), .{ .template = true });
+    pub const FRAMEBUFFER_COMPLETE = bridge.property(@as(u32, 0x8CD5), .{ .template = true });
+    pub const ARRAY_BUFFER = bridge.property(@as(u32, 0x8892), .{ .template = true });
+    pub const ELEMENT_ARRAY_BUFFER = bridge.property(@as(u32, 0x8893), .{ .template = true });
+    pub const STATIC_DRAW = bridge.property(@as(u32, 0x88E4), .{ .template = true });
+    pub const DYNAMIC_DRAW = bridge.property(@as(u32, 0x88E8), .{ .template = true });
+    pub const VERTEX_SHADER = bridge.property(@as(u32, 0x8B31), .{ .template = true });
+    pub const FRAGMENT_SHADER = bridge.property(@as(u32, 0x8B30), .{ .template = true });
+    pub const COMPILE_STATUS = bridge.property(@as(u32, 0x8B81), .{ .template = true });
+    pub const LINK_STATUS = bridge.property(@as(u32, 0x8B82), .{ .template = true });
+    // Critical getParameter constants
+    pub const VENDOR = bridge.property(@as(u32, 0x1F00), .{ .template = true });
+    pub const RENDERER = bridge.property(@as(u32, 0x1F01), .{ .template = true });
+    pub const VERSION = bridge.property(@as(u32, 0x1F02), .{ .template = true });
+    pub const SHADING_LANGUAGE_VERSION = bridge.property(@as(u32, 0x8B8C), .{ .template = true });
+    pub const MAX_TEXTURE_SIZE = bridge.property(@as(u32, 0x0D33), .{ .template = true });
+    pub const MAX_RENDERBUFFER_SIZE = bridge.property(@as(u32, 0x84E8), .{ .template = true });
+    pub const MAX_VIEWPORT_DIMS = bridge.property(@as(u32, 0x0D3A), .{ .template = true });
+    pub const MAX_VERTEX_ATTRIBS = bridge.property(@as(u32, 0x8869), .{ .template = true });
+    pub const MAX_VERTEX_UNIFORM_VECTORS = bridge.property(@as(u32, 0x8DFB), .{ .template = true });
+    pub const MAX_VARYING_VECTORS = bridge.property(@as(u32, 0x8DFC), .{ .template = true });
+    pub const MAX_FRAGMENT_UNIFORM_VECTORS = bridge.property(@as(u32, 0x8DFD), .{ .template = true });
+    pub const MAX_TEXTURE_IMAGE_UNITS = bridge.property(@as(u32, 0x8872), .{ .template = true });
+    pub const MAX_VERTEX_TEXTURE_IMAGE_UNITS = bridge.property(@as(u32, 0x8B4C), .{ .template = true });
+    pub const MAX_COMBINED_TEXTURE_IMAGE_UNITS = bridge.property(@as(u32, 0x8B4D), .{ .template = true });
+    pub const MAX_CUBE_MAP_TEXTURE_SIZE = bridge.property(@as(u32, 0x851C), .{ .template = true });
+    pub const DEPTH_BITS = bridge.property(@as(u32, 0x0D56), .{ .template = true });
+    pub const STENCIL_BITS = bridge.property(@as(u32, 0x0D57), .{ .template = true });
+    pub const RED_BITS = bridge.property(@as(u32, 0x0D52), .{ .template = true });
+    pub const GREEN_BITS = bridge.property(@as(u32, 0x0D53), .{ .template = true });
+    pub const BLUE_BITS = bridge.property(@as(u32, 0x0D54), .{ .template = true });
+    pub const ALPHA_BITS = bridge.property(@as(u32, 0x0D55), .{ .template = true });
+    pub const ALIASED_LINE_WIDTH_RANGE = bridge.property(@as(u32, 0x846E), .{ .template = true });
+    pub const ALIASED_POINT_SIZE_RANGE = bridge.property(@as(u32, 0x846D), .{ .template = true });
+    pub const SAMPLES = bridge.property(@as(u32, 0x80A8), .{ .template = true });
+    pub const SAMPLE_BUFFERS = bridge.property(@as(u32, 0x80A9), .{ .template = true });
+    pub const SAMPLE_COVERAGE_VALUE = bridge.property(@as(u32, 0x80AA), .{ .template = true });
+    // Noop methods that CF might call
+    pub const enable = bridge.function(noop2, .{});
+    pub const disable = bridge.function(noop2, .{});
+    pub const clear = bridge.function(noop2, .{});
+    pub const clearColor = bridge.function(noop5, .{});
+    pub const viewport = bridge.function(noop5, .{});
+    pub const getError = bridge.function(noError, .{});
+    pub const createShader = bridge.function(noop2, .{});
+    pub const createProgram = bridge.function(noop1, .{});
+    pub const createBuffer = bridge.function(noop1, .{});
+    pub const createTexture = bridge.function(noop1, .{});
+    pub const createFramebuffer = bridge.function(noop1, .{});
+    pub const createRenderbuffer = bridge.function(noop1, .{});
+    pub const isContextLost = bridge.function(notLost, .{});
 };
+
+fn noop1(_: *const WebGLRenderingContext) void {}
+fn noop2(_: *const WebGLRenderingContext, _: u32) void {}
+fn noop5(_: *const WebGLRenderingContext, _: f64, _: f64, _: f64, _: f64) void {}
+fn noError(_: *const WebGLRenderingContext) u32 {
+    return 0; // NO_ERROR
+}
+fn notLost(_: *const WebGLRenderingContext) bool {
+    return false;
+}
 
 const testing = @import("../../../testing.zig");
 test "WebApi: WebGLRenderingContext" {
