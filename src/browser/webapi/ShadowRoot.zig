@@ -154,6 +154,17 @@ pub const JsApi = struct {
         return self.getElementById(try value.toZig([]const u8), page);
     }
     pub const adoptedStyleSheets = bridge.accessor(ShadowRoot.getAdoptedStyleSheets, ShadowRoot.setAdoptedStyleSheets, .{});
+
+    // querySelector/querySelectorAll must be explicitly defined because V8's template
+    // prototype chain doesn't inherit them from DocumentFragment for ShadowRoot instances.
+    pub const querySelector = bridge.function(_querySelector, .{ .dom_exception = true });
+    fn _querySelector(self: *ShadowRoot, selector: []const u8, page: *Page) !?*Element {
+        return self.asDocumentFragment().querySelector(selector, page);
+    }
+    pub const querySelectorAll = bridge.function(_querySelectorAll, .{ .dom_exception = true });
+    fn _querySelectorAll(self: *ShadowRoot, input: []const u8, page: *Page) !*@import("selector/Selector.zig").List {
+        return self.asDocumentFragment().querySelectorAll(input, page);
+    }
 };
 
 const testing = @import("../../testing.zig");

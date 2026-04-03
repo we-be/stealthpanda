@@ -1305,13 +1305,15 @@ pub fn addElementId(self: *Page, parent: *Node, element: *Element, id: []const u
 /// Adds the element's ID to shadow root ID maps AND adds the element
 /// as a child of shadow roots that have no Zig children (tree sync).
 pub fn addOrphanElementId(self: *Page, element: *Element, id: []const u8) void {
+    var sr_count: u32 = 0;
     var it = self._element_shadow_roots.iterator();
     while (it.next()) |entry| {
         const sr = entry.value_ptr.*;
         sr._elements_by_id.put(self.arena, id, element) catch {};
+        sr_count += 1;
         // Also add to the DOM tree so querySelector's tree walk can find it
         const sr_node = sr.asDocumentFragment().asNode();
-        if (sr_node.firstChild() == null and element.asNode()._parent == null) {
+        if (element.asNode()._parent == null) {
             self.appendNode(sr_node, element.asNode(), .{}) catch {};
         }
     }
@@ -2941,20 +2943,30 @@ pub fn attributeChange(self: *Page, element: *Element, name: String, value: Stri
     // Window (created by the src handler above), add it to its shadow root
     // parent in Zig's DOM tree so querySelector can find it.
     if (name.eql(comptime .wrap("id"))) {
+        const id_val = element.getAttributeSafe(comptime .wrap("id")) orelse "";
+        if (id_val.len > 0) {
+            // Register the element's ID in the containing shadow root or document
+            if (element.asNode()._parent) |parent| {
+                // Element is in the tree — register in the correct root
+                self.addElementId(parent, element, id_val) catch {};
+            } else {
+                // Element has no Zig parent — V8 may have added it to a shadow root.
+                // Register in ALL shadow roots (the orphan case).
+                self.addOrphanElementId(element, id_val);
+            }
+        }
+        // Also handle iframe-specific shadow root attachment
         if (element.asNode().is(IFrame)) |iframe| {
             if (iframe._window != null and element.asNode()._parent == null) {
-                // Iframe has a window but no Zig parent — V8 added it to a shadow root.
-                // Find the shadow root by checking page's shadow root map.
                 var sr_iter = self._element_shadow_roots.iterator();
                 while (sr_iter.next()) |entry| {
                     const sr = entry.value_ptr.*;
                     const sr_node = sr.asDocumentFragment().asNode();
-                    // Add the iframe as a child of this shadow root in Zig's DOM tree
                     if (sr_node.firstChild() == null) {
                         self.appendNode(sr_node, element.asNode(), .{}) catch {};
                         break;
                     }
-                } // while sr_iter
+                }
             }
         }
     }
