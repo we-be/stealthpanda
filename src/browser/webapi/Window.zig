@@ -304,7 +304,8 @@ pub fn fetch(_: *const Window, input: Fetch.Input, options: ?Fetch.InitOpts, pag
 }
 
 pub fn setTimeout(self: *Window, cb: js.Function.Temp, delay_ms: ?u32, params: []js.Value.Temp, page: *Page) !u32 {
-    return self.scheduleCallback(cb, delay_ms orelse 0, .{
+    const delay = delay_ms orelse 0;
+    return self.scheduleCallback(cb, delay, .{
         .repeat = false,
         .params = params,
         .low_priority = false,
