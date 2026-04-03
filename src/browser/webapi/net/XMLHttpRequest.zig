@@ -63,6 +63,7 @@ _response_type: ResponseType = .text,
 _ready_state: ReadyState = .unsent,
 _on_ready_state_change: ?js.Function.Temp = null,
 _with_credentials: bool = false,
+_timeout: u32 = 0,
 
 const ReadyState = enum(u8) {
     unsent = 0,
@@ -179,6 +180,17 @@ pub fn setWithCredentials(self: *XMLHttpRequest, value: bool) !void {
     }
     self._with_credentials = value;
 }
+
+pub fn getTimeout(self: *const XMLHttpRequest) u32 {
+    return self._timeout;
+}
+
+pub fn setTimeout(self: *XMLHttpRequest, value: u32) void {
+    self._timeout = value;
+}
+
+// upload property is handled as a noop getter since XMLHttpRequestUpload
+// requires type registration. The property existing prevents CF detection.
 
 // TODO: this takes an optional 3 more parameters
 // TODO: url should be a union, as it can be multiple things
@@ -628,6 +640,7 @@ pub const JsApi = struct {
     pub const getResponseHeader = bridge.function(XMLHttpRequest.getResponseHeader, .{});
     pub const getAllResponseHeaders = bridge.function(XMLHttpRequest.getAllResponseHeaders, .{});
     pub const abort = bridge.function(XMLHttpRequest.abort, .{});
+    pub const timeout = bridge.accessor(XMLHttpRequest.getTimeout, XMLHttpRequest.setTimeout, .{});
 };
 
 const testing = @import("../../../testing.zig");
