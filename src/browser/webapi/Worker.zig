@@ -15,8 +15,6 @@ const Worker = @This();
 _pad: bool = false,
 
 pub fn init(_: []const u8, page: *Page) !*Worker {
-    // Return a stub Worker object — the stealth inject JS polyfill
-    // overrides `new Worker()` at the JS level
     return page._factory.create(Worker{ ._pad = false });
 }
 
