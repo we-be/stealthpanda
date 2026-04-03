@@ -57,8 +57,12 @@ pub const Shed = struct {
 };
 
 pub const Bucket = struct {
-    _pad: bool = false, // Padding so local/session have distinct addresses from parent
+    // Extra padding to ensure local and session have unique addresses
+    // that don't collide with any parent struct fields in the V8 identity map
+    _pad1: u64 = 0,
+    _pad2: u64 = 0,
     local: Lookup = .{},
+    _pad3: u64 = 0,
     session: Lookup = .{},
 };
 
