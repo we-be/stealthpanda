@@ -56,9 +56,14 @@ pub const Shed = struct {
     }
 };
 
-pub const Bucket = struct { local: Lookup = .{}, session: Lookup = .{} };
+pub const Bucket = struct {
+    _pad: bool = false, // Padding so local/session have distinct addresses from parent
+    local: Lookup = .{},
+    session: Lookup = .{},
+};
 
 pub const Lookup = struct {
+    _pad: u64 = 0xDEADBEEF, // Ensure unique address in identity map
     _data: std.StringHashMapUnmanaged([]const u8) = .empty,
     _size: usize = 0,
 
