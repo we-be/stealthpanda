@@ -173,6 +173,8 @@ pub const CurlOption = enum(c.CURLoption) {
     tls13_ciphers = c.CURLOPT_TLS13_CIPHERS,
     ssl_ec_curves = c.CURLOPT_SSL_EC_CURVES,
     http_version = c.CURLOPT_HTTP_VERSION,
+    ssl_verifystatus = c.CURLOPT_SSL_VERIFYSTATUS,
+    ssl_options = c.CURLOPT_SSL_OPTIONS,
 };
 
 pub const CurlMOption = enum(c.CURLMoption) {
@@ -558,6 +560,8 @@ pub fn curl_easy_setopt(easy: *Curl, comptime option: CurlOption, value: anytype
         .follow_location,
         .post_field_size,
         .http_version,
+        .ssl_verifystatus,
+        .ssl_options,
         => blk: {
             const n: c_long = switch (@typeInfo(@TypeOf(value))) {
                 .comptime_int, .int => @intCast(value),

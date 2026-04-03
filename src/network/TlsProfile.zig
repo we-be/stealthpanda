@@ -21,6 +21,11 @@ pub const TlsProfile = struct {
         libcurl.curl_easy_setopt(easy, .tls13_ciphers, self.tls13_ciphers.ptr) catch {};
         libcurl.curl_easy_setopt(easy, .ssl_ec_curves, self.ec_curves.ptr) catch {};
         libcurl.curl_easy_setopt(easy, .http_version, self.http_version) catch {};
+        // Note: Chrome sends status_request, signed_certificate_timestamp,
+        // compress_certificate, ALPS, and padding extensions. These require
+        // BoringSSL (not OpenSSL) to match exactly. OpenSSL doesn't support
+        // some of these extensions, causing JA3 mismatch.
+        // TODO: Switch to BoringSSL or use SSL_CTX_FUNCTION callback.
     }
 
     /// Chrome 131 TLS fingerprint profile.
