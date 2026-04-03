@@ -24,6 +24,14 @@ const Allocator = std.mem.Allocator;
 /// https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D
 const CanvasRenderingContext2D = @This();
 
+const PathOp = union(enum) {
+    move_to: struct { x: f64, y: f64 },
+    line_to: struct { x: f64, y: f64 },
+    close,
+    arc_lines: struct { cx: f64, cy: f64, r: f64, start: f64, end: f64 },
+};
+const MAX_PATH_OPS = 256;
+
 _canvas: *Canvas,
 _fill_style: color.RGBA = color.RGBA.Named.black,
 _stroke_color: color.RGBA = color.RGBA.Named.black,
@@ -32,6 +40,12 @@ _line_width: f64 = 1.0,
 // z2d rendering state — lazily initialized on first draw
 _surface: ?z2d.Surface = null,
 _alloc: ?Allocator = null,
+
+// Path state for fill/stroke
+_path_ops: [MAX_PATH_OPS]PathOp = undefined,
+_path_len: usize = 0,
+_path_x: f64 = 0,
+_path_y: f64 = 0,
 
 pub fn getCanvas(self: *const CanvasRenderingContext2D) *Canvas {
     return self._canvas;
@@ -176,10 +190,13 @@ pub fn strokeRect(self: *CanvasRenderingContext2D, x: f64, y: f64, w: f64, h: f6
     self._surface = sfc;
 }
 
-// === Path-based drawing (stateless — each call is independent) ===
-// For proper path accumulation we'd need a path buffer. For now,
-// fillText and basic shapes work which is enough for Picasso fingerprinting.
+// === Path-based drawing with z2d ===
+// z2d.Context manages its own internal path state. We use a fresh
+// context for each draw call, accumulating path segments and then
+// filling/stroking. For the Picasso fingerprinting to work, arc(),
+// lineTo(), fill(), and stroke() must produce real pixels.
 
+// State management (noop for now — z2d doesn't support save/restore stack)
 pub fn save(_: *CanvasRenderingContext2D) void {}
 pub fn restore(_: *CanvasRenderingContext2D) void {}
 pub fn scale(_: *CanvasRenderingContext2D, _: f64, _: f64) void {}
@@ -188,17 +205,125 @@ pub fn translate(_: *CanvasRenderingContext2D, _: f64, _: f64) void {}
 pub fn transform(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64) void {}
 pub fn setTransform(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64) void {}
 pub fn resetTransform(_: *CanvasRenderingContext2D) void {}
-pub fn beginPath(_: *CanvasRenderingContext2D) void {}
-pub fn closePath(_: *CanvasRenderingContext2D) void {}
-pub fn moveTo(_: *CanvasRenderingContext2D, _: f64, _: f64) void {}
-pub fn lineTo(_: *CanvasRenderingContext2D, _: f64, _: f64) void {}
-pub fn quadraticCurveTo(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64) void {}
-pub fn bezierCurveTo(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64) void {}
-pub fn arc(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _: f64, _: ?bool) void {}
-pub fn arcTo(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _: f64) void {}
-pub fn rect(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64) void {}
-pub fn fill(_: *CanvasRenderingContext2D) void {}
-pub fn stroke(_: *CanvasRenderingContext2D) void {}
+
+pub fn beginPath(self: *CanvasRenderingContext2D) void {
+    self._path_len = 0;
+}
+
+pub fn closePath(self: *CanvasRenderingContext2D) void {
+    if (self._path_len < MAX_PATH_OPS) {
+        self._path_ops[self._path_len] = .close;
+        self._path_len += 1;
+    }
+}
+
+pub fn moveTo(self: *CanvasRenderingContext2D, x: f64, y: f64) void {
+    if (self._path_len < MAX_PATH_OPS) {
+        self._path_ops[self._path_len] = .{ .move_to = .{ .x = x, .y = y } };
+        self._path_len += 1;
+    }
+    self._path_x = x;
+    self._path_y = y;
+}
+
+pub fn lineTo(self: *CanvasRenderingContext2D, x: f64, y: f64) void {
+    if (self._path_len < MAX_PATH_OPS) {
+        self._path_ops[self._path_len] = .{ .line_to = .{ .x = x, .y = y } };
+        self._path_len += 1;
+    }
+    self._path_x = x;
+    self._path_y = y;
+}
+
+pub fn quadraticCurveTo(self: *CanvasRenderingContext2D, cpx: f64, cpy: f64, x: f64, y: f64) void {
+    // Approximate with a line to the endpoint
+    self.lineTo(x, y);
+    _ = cpx;
+    _ = cpy;
+}
+
+pub fn bezierCurveTo(self: *CanvasRenderingContext2D, cp1x: f64, cp1y: f64, cp2x: f64, cp2y: f64, x: f64, y: f64) void {
+    // Approximate with a line to the endpoint
+    self.lineTo(x, y);
+    _ = cp1x;
+    _ = cp1y;
+    _ = cp2x;
+    _ = cp2y;
+}
+
+pub fn arc(self: *CanvasRenderingContext2D, cx: f64, cy: f64, r: f64, start_angle: f64, end_angle: f64, _: ?bool) void {
+    // Approximate arc with line segments
+    if (self._path_len < MAX_PATH_OPS) {
+        self._path_ops[self._path_len] = .{ .arc_lines = .{ .cx = cx, .cy = cy, .r = r, .start = start_angle, .end = end_angle } };
+        self._path_len += 1;
+    }
+}
+
+pub fn arcTo(self: *CanvasRenderingContext2D, x1: f64, y1: f64, _: f64, _: f64, _: f64) void {
+    self.lineTo(x1, y1);
+}
+
+pub fn rect(self: *CanvasRenderingContext2D, x: f64, y: f64, w: f64, h: f64) void {
+    self.moveTo(x, y);
+    self.lineTo(x + w, y);
+    self.lineTo(x + w, y + h);
+    self.lineTo(x, y + h);
+    self.closePath();
+}
+
+fn replayPath(self: *CanvasRenderingContext2D, ctx: *z2d.Context) void {
+    for (self._path_ops[0..self._path_len]) |op| {
+        switch (op) {
+            .move_to => |m| ctx.moveTo(m.x, m.y) catch {},
+            .line_to => |l| ctx.lineTo(l.x, l.y) catch {},
+            .close => ctx.closePath() catch {},
+            .arc_lines => |a| {
+                // Approximate arc with 16 line segments
+                const steps: usize = 16;
+                const range = a.end - a.start;
+                var i: usize = 0;
+                while (i <= steps) : (i += 1) {
+                    const t = a.start + range * @as(f64, @floatFromInt(i)) / @as(f64, @floatFromInt(steps));
+                    const px = a.cx + a.r * @cos(t);
+                    const py = a.cy + a.r * @sin(t);
+                    if (i == 0) {
+                        ctx.moveTo(px, py) catch {};
+                    } else {
+                        ctx.lineTo(px, py) catch {};
+                    }
+                }
+            },
+        }
+    }
+}
+
+pub fn fill(self: *CanvasRenderingContext2D, page: *Page) void {
+    if (self._path_len == 0) return;
+    self.ensureSurface(page);
+    var sfc = self._surface orelse return;
+    var ctx = z2d.Context.init(self._alloc orelse return, &sfc);
+    defer ctx.deinit();
+
+    ctx.setSourceToPixel(self.fillToZ2dPixel());
+    self.replayPath(&ctx);
+    ctx.fill() catch {};
+    self._surface = sfc;
+}
+
+pub fn stroke(self: *CanvasRenderingContext2D, page: *Page) void {
+    if (self._path_len == 0) return;
+    self.ensureSurface(page);
+    var sfc = self._surface orelse return;
+    var ctx = z2d.Context.init(self._alloc orelse return, &sfc);
+    defer ctx.deinit();
+
+    ctx.setSourceToPixel(self.strokeToZ2dPixel());
+    ctx.setLineWidth(self._line_width);
+    self.replayPath(&ctx);
+    ctx.stroke() catch {};
+    self._surface = sfc;
+}
+
 pub fn clip(_: *CanvasRenderingContext2D) void {}
 pub fn fillText(self: *CanvasRenderingContext2D, _: []const u8, x: f64, y: f64, _: ?f64, page: *Page) void {
     // Render a colored block to produce non-zero canvas fingerprint
@@ -267,29 +392,29 @@ pub const JsApi = struct {
 
     pub const putImageData = bridge.function(CanvasRenderingContext2D.putImageData, .{});
     pub const getImageData = bridge.function(CanvasRenderingContext2D.getImageData, .{ .dom_exception = true });
-    pub const save = bridge.function(CanvasRenderingContext2D.save, .{ .noop = true });
-    pub const restore = bridge.function(CanvasRenderingContext2D.restore, .{ .noop = true });
-    pub const scale = bridge.function(CanvasRenderingContext2D.scale, .{ .noop = true });
-    pub const rotate = bridge.function(CanvasRenderingContext2D.rotate, .{ .noop = true });
-    pub const translate = bridge.function(CanvasRenderingContext2D.translate, .{ .noop = true });
-    pub const transform = bridge.function(CanvasRenderingContext2D.transform, .{ .noop = true });
-    pub const setTransform = bridge.function(CanvasRenderingContext2D.setTransform, .{ .noop = true });
-    pub const resetTransform = bridge.function(CanvasRenderingContext2D.resetTransform, .{ .noop = true });
+    pub const save = bridge.function(CanvasRenderingContext2D.save, .{});
+    pub const restore = bridge.function(CanvasRenderingContext2D.restore, .{});
+    pub const scale = bridge.function(CanvasRenderingContext2D.scale, .{});
+    pub const rotate = bridge.function(CanvasRenderingContext2D.rotate, .{});
+    pub const translate = bridge.function(CanvasRenderingContext2D.translate, .{});
+    pub const transform = bridge.function(CanvasRenderingContext2D.transform, .{});
+    pub const setTransform = bridge.function(CanvasRenderingContext2D.setTransform, .{});
+    pub const resetTransform = bridge.function(CanvasRenderingContext2D.resetTransform, .{});
     pub const clearRect = bridge.function(CanvasRenderingContext2D.clearRect, .{});
     pub const fillRect = bridge.function(CanvasRenderingContext2D.fillRect, .{});
     pub const strokeRect = bridge.function(CanvasRenderingContext2D.strokeRect, .{});
-    pub const beginPath = bridge.function(CanvasRenderingContext2D.beginPath, .{ .noop = true });
-    pub const closePath = bridge.function(CanvasRenderingContext2D.closePath, .{ .noop = true });
-    pub const moveTo = bridge.function(CanvasRenderingContext2D.moveTo, .{ .noop = true });
-    pub const lineTo = bridge.function(CanvasRenderingContext2D.lineTo, .{ .noop = true });
-    pub const quadraticCurveTo = bridge.function(CanvasRenderingContext2D.quadraticCurveTo, .{ .noop = true });
-    pub const bezierCurveTo = bridge.function(CanvasRenderingContext2D.bezierCurveTo, .{ .noop = true });
-    pub const arc = bridge.function(CanvasRenderingContext2D.arc, .{ .noop = true });
-    pub const arcTo = bridge.function(CanvasRenderingContext2D.arcTo, .{ .noop = true });
-    pub const rect = bridge.function(CanvasRenderingContext2D.rect, .{ .noop = true });
-    pub const fill = bridge.function(CanvasRenderingContext2D.fill, .{ .noop = true });
-    pub const stroke = bridge.function(CanvasRenderingContext2D.stroke, .{ .noop = true });
-    pub const clip = bridge.function(CanvasRenderingContext2D.clip, .{ .noop = true });
+    pub const beginPath = bridge.function(CanvasRenderingContext2D.beginPath, .{});
+    pub const closePath = bridge.function(CanvasRenderingContext2D.closePath, .{});
+    pub const moveTo = bridge.function(CanvasRenderingContext2D.moveTo, .{});
+    pub const lineTo = bridge.function(CanvasRenderingContext2D.lineTo, .{});
+    pub const quadraticCurveTo = bridge.function(CanvasRenderingContext2D.quadraticCurveTo, .{});
+    pub const bezierCurveTo = bridge.function(CanvasRenderingContext2D.bezierCurveTo, .{});
+    pub const arc = bridge.function(CanvasRenderingContext2D.arc, .{});
+    pub const arcTo = bridge.function(CanvasRenderingContext2D.arcTo, .{});
+    pub const rect = bridge.function(CanvasRenderingContext2D.rect, .{});
+    pub const fill = bridge.function(CanvasRenderingContext2D.fill, .{});
+    pub const stroke = bridge.function(CanvasRenderingContext2D.stroke, .{});
+    pub const clip = bridge.function(CanvasRenderingContext2D.clip, .{});
     pub const fillText = bridge.function(CanvasRenderingContext2D.fillText, .{});
     pub const strokeText = bridge.function(CanvasRenderingContext2D.strokeText, .{ .noop = true });
     pub const measureText = bridge.function(CanvasRenderingContext2D.measureText, .{});
