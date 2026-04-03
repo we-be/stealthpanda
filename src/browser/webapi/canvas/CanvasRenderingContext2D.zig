@@ -306,26 +306,49 @@ pub fn stroke(self: *CanvasRenderingContext2D, page: *Page) void {
 }
 
 pub fn clip(_: *CanvasRenderingContext2D) void {}
-pub fn fillText(self: *CanvasRenderingContext2D, _: []const u8, x: f64, y: f64, _: ?f64, page: *Page) void {
-    // Render a colored block to produce non-zero canvas fingerprint
+// Embedded font for canvas text rendering (Inter Regular subset from z2d).
+// This produces consistent, deterministic text rendering for canvas fingerprinting.
+const embedded_font = @embedFile("fonts/Inter-Regular.subset.ttf");
+
+pub fn fillText(self: *CanvasRenderingContext2D, text: []const u8, x: f64, y: f64, _: ?f64, page: *Page) void {
     self.ensureSurface(page);
     var sfc = self._surface orelse return;
     var ctx = z2d.Context.init(self._alloc orelse return, &sfc);
     defer ctx.deinit();
 
     ctx.setSourceToPixel(self.fillToZ2dPixel());
-    // Draw a small filled rectangle as text placeholder
-    const h: f64 = 10.0;
-    const w: f64 = 60.0;
-    ctx.moveTo(x, y - h) catch return;
-    ctx.lineTo(x + w, y - h) catch return;
-    ctx.lineTo(x + w, y) catch return;
-    ctx.lineTo(x, y) catch return;
-    ctx.closePath() catch return;
-    ctx.fill() catch return;
+
+    // Try to render with the embedded font
+    ctx.setFontToBuffer(embedded_font) catch {
+        // Font load failed — fall back to rectangle placeholder
+        ctx.moveTo(x, y - 10) catch return;
+        ctx.lineTo(x + @as(f64, @floatFromInt(text.len)) * 6.0, y - 10) catch return;
+        ctx.lineTo(x + @as(f64, @floatFromInt(text.len)) * 6.0, y) catch return;
+        ctx.lineTo(x, y) catch return;
+        ctx.closePath() catch return;
+        ctx.fill() catch return;
+        self._surface = sfc;
+        return;
+    };
+    ctx.setFontSize(14.0); // Default 10px CSS maps to ~14px rendering
+    ctx.showText(text, x, y) catch {
+        // Text render failed — fall back to rectangle
+        ctx.moveTo(x, y - 10) catch return;
+        ctx.lineTo(x + @as(f64, @floatFromInt(text.len)) * 6.0, y - 10) catch return;
+        ctx.lineTo(x + @as(f64, @floatFromInt(text.len)) * 6.0, y) catch return;
+        ctx.lineTo(x, y) catch return;
+        ctx.closePath() catch return;
+        ctx.fill() catch return;
+        self._surface = sfc;
+        return;
+    };
     self._surface = sfc;
 }
-pub fn strokeText(_: *CanvasRenderingContext2D, _: []const u8, _: f64, _: f64, _: ?f64) void {}
+
+pub fn strokeText(self: *CanvasRenderingContext2D, text: []const u8, x: f64, y: f64, _: ?f64, page: *Page) void {
+    // strokeText is less common in fingerprinting — delegate to fillText for now
+    self.fillText(text, x, y, null, page);
+}
 
 pub fn measureText(_: *CanvasRenderingContext2D, text: []const u8, page: *Page) !*TextMetrics {
     // Approximate width: ~6px per character for 10px sans-serif default font
