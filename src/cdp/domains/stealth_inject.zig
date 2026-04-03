@@ -23,6 +23,70 @@ pub const script: [:0]const u8 =
     \\
     \\
     \\
+    // Add critical missing Window APIs that CF checks
+    \\(function() {
+    \\  // indexedDB stub
+    \\  if (typeof indexedDB === 'undefined') {
+    \\    Object.defineProperty(window, 'indexedDB', {
+    \\      value: {
+    \\        open: function(name, ver) {
+    \\          return {
+    \\            result: null, error: null, readyState: 'done',
+    \\            onsuccess: null, onerror: null, onupgradeneeded: null,
+    \\            addEventListener: function() {}, removeEventListener: function() {}
+    \\          };
+    \\        },
+    \\        deleteDatabase: function() { return { onsuccess: null, onerror: null }; },
+    \\        databases: function() { return Promise.resolve([]); },
+    \\        cmp: function() { return 0; }
+    \\      },
+    \\      writable: true, configurable: true, enumerable: true
+    \\    });
+    \\  }
+    \\  // CacheStorage / caches stub
+    \\  if (typeof caches === 'undefined') {
+    \\    Object.defineProperty(window, 'caches', {
+    \\      value: {
+    \\        open: function() { return Promise.resolve({ match: function() { return Promise.resolve(undefined); }, put: function() { return Promise.resolve(); }, delete: function() { return Promise.resolve(true); }, keys: function() { return Promise.resolve([]); } }); },
+    \\        has: function() { return Promise.resolve(false); },
+    \\        delete: function() { return Promise.resolve(true); },
+    \\        keys: function() { return Promise.resolve([]); },
+    \\        match: function() { return Promise.resolve(undefined); }
+    \\      },
+    \\      writable: true, configurable: true, enumerable: true
+    \\    });
+    \\  }
+    \\  // BroadcastChannel stub
+    \\  if (typeof BroadcastChannel === 'undefined') {
+    \\    window.BroadcastChannel = function(name) {
+    \\      this.name = name;
+    \\      this.onmessage = null;
+    \\      this.onmessageerror = null;
+    \\    };
+    \\    window.BroadcastChannel.prototype.postMessage = function() {};
+    \\    window.BroadcastChannel.prototype.close = function() {};
+    \\    window.BroadcastChannel.prototype.addEventListener = function() {};
+    \\    window.BroadcastChannel.prototype.removeEventListener = function() {};
+    \\  }
+    \\  // ServiceWorker container stub
+    \\  if (typeof navigator.serviceWorker === 'undefined') {
+    \\    try {
+    \\      Object.defineProperty(navigator, 'serviceWorker', {
+    \\        value: {
+    \\          register: function() { return Promise.reject(new Error('SecurityError')); },
+    \\          getRegistration: function() { return Promise.resolve(undefined); },
+    \\          getRegistrations: function() { return Promise.resolve([]); },
+    \\          ready: Promise.resolve(null),
+    \\          controller: null,
+    \\          oncontrollerchange: null,
+    \\          onmessage: null,
+    \\          addEventListener: function() {}, removeEventListener: function() {}
+    \\        },
+    \\        writable: true, configurable: true, enumerable: true
+    \\      });
+    \\    } catch(e) {}
+    \\  }
+    \\})();
     \\
     // Lock navigator.webdriver to false
     \\Object.defineProperty(navigator, 'webdriver', {
