@@ -105,9 +105,11 @@ pub fn getImageData(
         return error.IndexSizeError;
     }
 
-    // Ensure the surface exists so we have rendered pixels
     self.ensureSurface(page);
-
+    // TODO: Copy actual pixel data from z2d surface into ImageData.
+    // Currently returns a blank ImageData because the V8 typed array
+    // backing store is not directly writable from Zig.
+    // The canvas fingerprint via toDataURL() works correctly though.
     return ImageData.init(@intCast(sw), @intCast(sh), null, page);
 }
 
