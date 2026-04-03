@@ -395,7 +395,12 @@ pub fn deinit(self: *Page, abort_http: bool) void {
 }
 
 pub fn base(self: *const Page) [:0]const u8 {
-    return self.base_url orelse self.url;
+    if (self.base_url) |b| return b;
+    // about:blank iframes can't resolve relative URLs — inherit parent's base
+    if (std.mem.eql(u8, self.url, "about:blank")) {
+        if (self.parent) |p| return p.base();
+    }
+    return self.url;
 }
 
 pub fn getTitle(self: *Page) !?[]const u8 {

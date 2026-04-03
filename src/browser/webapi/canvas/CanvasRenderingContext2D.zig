@@ -17,6 +17,7 @@ const Page = @import("../../Page.zig");
 const Canvas = @import("../element/html/Canvas.zig");
 const ImageData = @import("../ImageData.zig");
 const TextMetrics = @import("TextMetrics.zig");
+const CanvasGradient = @import("CanvasGradient.zig");
 
 const Allocator = std.mem.Allocator;
 
@@ -431,6 +432,16 @@ pub fn measureText(_: *CanvasRenderingContext2D, text: []const u8, page: *Page) 
     return page._factory.create(TextMetrics{ ._width = width });
 }
 
+pub fn createRadialGradient(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, _: f64, _: f64, page: *Page) !*CanvasGradient {
+    return page._factory.create(CanvasGradient{});
+}
+
+pub fn createLinearGradient(_: *CanvasRenderingContext2D, _: f64, _: f64, _: f64, _: f64, page: *Page) !*CanvasGradient {
+    return page._factory.create(CanvasGradient{});
+}
+
+pub fn createPattern(_: *CanvasRenderingContext2D, _: ?*anyopaque, _: ?[]const u8) void {}
+
 pub fn drawImage(_: *CanvasRenderingContext2D, _: ?*anyopaque, _: f64, _: f64) void {}
 pub fn setLineDash(_: *CanvasRenderingContext2D) void {}
 pub fn isPointInPath(_: *CanvasRenderingContext2D, _: f64, _: f64) bool {
@@ -497,6 +508,9 @@ pub const JsApi = struct {
     pub const fillText = bridge.function(CanvasRenderingContext2D.fillText, .{});
     pub const strokeText = bridge.function(CanvasRenderingContext2D.strokeText, .{ .noop = true });
     pub const measureText = bridge.function(CanvasRenderingContext2D.measureText, .{});
+    pub const createRadialGradient = bridge.function(CanvasRenderingContext2D.createRadialGradient, .{});
+    pub const createLinearGradient = bridge.function(CanvasRenderingContext2D.createLinearGradient, .{});
+    pub const createPattern = bridge.function(CanvasRenderingContext2D.createPattern, .{ .noop = true });
     pub const drawImage = bridge.function(CanvasRenderingContext2D.drawImage, .{ .noop = true });
     pub const setLineDash = bridge.function(CanvasRenderingContext2D.setLineDash, .{ .noop = true });
     pub const isPointInPath = bridge.function(CanvasRenderingContext2D.isPointInPath, .{});

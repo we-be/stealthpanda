@@ -3,6 +3,7 @@
 // Patches JS APIs that bot detectors probe to detect automation.
 
 pub const script: [:0]const u8 =
+    \\try { // begin main stealth block
     \\
     \\(function() {
     \\  var _stub = function _s() { return _stub; };
@@ -269,10 +270,8 @@ pub const script: [:0]const u8 =
     // CF orchestrator creates a hidden iframe and enumerates all properties
     // of contentWindow, navigator, and contentDocument for fingerprinting
     \\(function() {
-    \\  var origAppendChild = Node.prototype.appendChild;
-    \\  Node.prototype.appendChild = function(child) {
-    \\    var result = origAppendChild.call(this, child);
-    \\    if (child.tagName === 'IFRAME' && child.contentWindow) {
+    \\  function patchIframe(child) {
+    \\    if (child && child.tagName === 'IFRAME' && child.contentWindow) {
     \\      var w = child.contentWindow;
     \\      // Add Chrome-like properties that are typically present on Window
     \\      var missing = ['external','styleMedia','defaultStatus','defaultstatus',
@@ -301,9 +300,73 @@ pub const script: [:0]const u8 =
     \\          get: function() { return w.navigator; }, configurable: true
     \\        }); } catch(e) {}
     \\      }
+    \\      // Patch iframe navigator to match parent navigator properties
+    \\      try {
+    \\        var pn = window.navigator;
+    \\        var cn = w.navigator;
+    \\        if (cn) {
+    \\          var navProps = ['platform','userAgent','appVersion','vendor','language',
+    \\            'languages','hardwareConcurrency','deviceMemory','maxTouchPoints',
+    \\            'cookieEnabled','onLine','webdriver','product','appName','appCodeName',
+    \\            'doNotTrack','globalPrivacyControl'];
+    \\          for (var j = 0; j < navProps.length; j++) {
+    \\            (function(prop) {
+    \\              if (typeof cn[prop] === 'undefined' || cn[prop] === null || cn[prop] === '') {
+    \\                try { Object.defineProperty(cn, prop, {
+    \\                  get: function() { return pn[prop]; }, configurable: true
+    \\                }); } catch(e) {}
+    \\              }
+    \\            })(navProps[j]);
+    \\          }
+    \\          // Copy mimeTypes and plugins references
+    \\          if (!cn.mimeTypes) try { Object.defineProperty(cn, 'mimeTypes', { get: function() { return pn.mimeTypes; }, configurable: true }); } catch(e) {}
+    \\          if (!cn.plugins) try { Object.defineProperty(cn, 'plugins', { get: function() { return pn.plugins; }, configurable: true }); } catch(e) {}
+    \\          if (!cn.mediaDevices) try { Object.defineProperty(cn, 'mediaDevices', { get: function() { return pn.mediaDevices; }, configurable: true }); } catch(e) {}
+    \\          if (!cn.permissions) try { Object.defineProperty(cn, 'permissions', { get: function() { return pn.permissions; }, configurable: true }); } catch(e) {}
+    \\          if (!cn.connection) try { Object.defineProperty(cn, 'connection', { get: function() { return pn.connection; }, configurable: true }); } catch(e) {}
+    \\          if (!cn.gpu) try { Object.defineProperty(cn, 'gpu', { get: function() { return pn.gpu; }, configurable: true }); } catch(e) {}
+    \\        }
+    \\      } catch(e) {}
+    \\      // Copy AudioContext and other constructors to iframe window
+    \\      try {
+    \\        var ctors = ['AudioContext','webkitAudioContext','OfflineAudioContext',
+    \\          'SpeechSynthesis','BroadcastChannel','RTCPeerConnection','Notification'];
+    \\        for (var k = 0; k < ctors.length; k++) {
+    \\          if (window[ctors[k]] && !w[ctors[k]]) {
+    \\            try { w[ctors[k]] = window[ctors[k]]; } catch(e) {}
+    \\          }
+    \\        }
+    \\      } catch(e) {}
     \\    }
+    \\  }
+    \\  var origAppendChild = Node.prototype.appendChild;
+    \\  Node.prototype.appendChild = function(child) {
+    \\    var result = origAppendChild.call(this, child);
+    \\    patchIframe(child);
     \\    return result;
     \\  };
+    \\  var origInsertBefore = Node.prototype.insertBefore;
+    \\  Node.prototype.insertBefore = function(child, ref) {
+    \\    var result = origInsertBefore.call(this, child, ref);
+    \\    patchIframe(child);
+    \\    return result;
+    \\  };
+    \\  var origReplaceChild = Node.prototype.replaceChild;
+    \\  Node.prototype.replaceChild = function(newChild, oldChild) {
+    \\    var result = origReplaceChild.call(this, newChild, oldChild);
+    \\    patchIframe(newChild);
+    \\    return result;
+    \\  };
+    \\  // Also patch document.body/head append for innerHTML-created iframes
+    \\  var origAppend = Element.prototype.append;
+    \\  if (origAppend) {
+    \\    Element.prototype.append = function() {
+    \\      origAppend.apply(this, arguments);
+    \\      for (var i = 0; i < arguments.length; i++) {
+    \\        if (arguments[i] && arguments[i].tagName) patchIframe(arguments[i]);
+    \\      }
+    \\    };
+    \\  }
     \\})();
     \\
     // Worker polyfill for managed challenge POW
@@ -380,7 +443,122 @@ pub const script: [:0]const u8 =
     \\  };
     \\})();
     \\
+    // Ensure AudioContext prototype has all expected methods
+    \\(function() {
+    \\  if (typeof AudioContext === 'function') {
+    \\    var proto = AudioContext.prototype;
+    \\    var noopNode = { connect: function() { return this; }, disconnect: function() {},
+    \\      start: function() {}, stop: function() {},
+    \\      addEventListener: function() {}, removeEventListener: function() {} };
+    \\    function stubMethod(name, fn) {
+    \\      if (!proto[name]) { proto[name] = fn; makeNative(fn, name); }
+    \\    }
+    \\    stubMethod('createAnalyser', function() {
+    \\      var n = Object.create(noopNode);
+    \\      n.fftSize = 2048; n.frequencyBinCount = 1024;
+    \\      n.minDecibels = -100; n.maxDecibels = -30;
+    \\      n.smoothingTimeConstant = 0.8;
+    \\      n.getFloatFrequencyData = function(a) { if(a) for(var i=0;i<a.length;i++) a[i]=-100; };
+    \\      n.getByteFrequencyData = function(a) { if(a) for(var i=0;i<a.length;i++) a[i]=0; };
+    \\      n.getFloatTimeDomainData = function(a) { if(a) for(var i=0;i<a.length;i++) a[i]=0; };
+    \\      n.getByteTimeDomainData = function(a) { if(a) for(var i=0;i<a.length;i++) a[i]=128; };
+    \\      return n;
+    \\    });
+    \\    stubMethod('createOscillator', function() { return Object.create(noopNode); });
+    \\    stubMethod('createGain', function() {
+    \\      var n = Object.create(noopNode);
+    \\      n.gain = { value: 1, setValueAtTime: function() {}, linearRampToValueAtTime: function() {},
+    \\        exponentialRampToValueAtTime: function() {} };
+    \\      return n;
+    \\    });
+    \\    stubMethod('createBiquadFilter', function() {
+    \\      var n = Object.create(noopNode);
+    \\      n.type = 'lowpass';
+    \\      n.frequency = { value: 350, setValueAtTime: function() {} };
+    \\      n.Q = { value: 1, setValueAtTime: function() {} };
+    \\      n.getFrequencyResponse = function() {};
+    \\      return n;
+    \\    });
+    \\    stubMethod('createDynamicsCompressor', function() {
+    \\      var n = Object.create(noopNode);
+    \\      n.threshold = { value: -24, setValueAtTime: function() {} };
+    \\      n.knee = { value: 30 }; n.ratio = { value: 12 };
+    \\      n.attack = { value: 0.003 }; n.release = { value: 0.25 };
+    \\      n.reduction = 0;
+    \\      return n;
+    \\    });
+    \\    stubMethod('createScriptProcessor', function() { return Object.create(noopNode); });
+    \\    stubMethod('createBufferSource', function() {
+    \\      var n = Object.create(noopNode);
+    \\      n.buffer = null; n.loop = false; n.playbackRate = { value: 1 };
+    \\      return n;
+    \\    });
+    \\    if (!('destination' in proto)) {
+    \\      Object.defineProperty(proto, 'destination', {
+    \\        get: function() { return Object.create(noopNode); }, configurable: true
+    \\      });
+    \\    }
+    \\    window.webkitAudioContext = AudioContext;
+    \\  }
+    \\})();
+    \\
+    // Stub navigator.gpu (WebGPU) — fingerprinters check requestAdapter
+    \\if (typeof navigator.gpu === 'undefined') {
+    \\  Object.defineProperty(navigator, 'gpu', {
+    \\    get: function() { return {
+    \\      requestAdapter: function() { return Promise.resolve(null); },
+    \\      getPreferredCanvasFormat: function() { return 'bgra8unorm'; },
+    \\    }; },
+    \\    configurable: true
+    \\  });
+    \\}
+    \\
     // Make Blob and Worker wrappers look native
     \\if (typeof Blob === 'function') makeNative(Blob, 'Blob');
     \\if (typeof Worker === 'function') makeNative(Worker, 'Worker');
+    // Auto-solve Turnstile interactive mode by clicking inside challenge iframes
+    \\(function() {
+    \\  // Listen for interactiveBegin from challenge iframes and auto-click
+    \\  window.addEventListener('message', function(e) {
+    \\    if (e.data && e.data.source === 'cloudflare-challenge' && e.data.event === 'interactiveBegin') {
+    \\      // Find the challenge iframe and click inside it
+    \\      var iframes = document.querySelectorAll('iframe');
+    \\      for (var i = 0; i < iframes.length; i++) {
+    \\        try {
+    \\          var doc = iframes[i].contentDocument;
+    \\          if (doc && doc.body) {
+    \\            setTimeout(function(d) {
+    \\              d.body.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, clientX:28, clientY:28, view:window}));
+    \\              d.body.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, cancelable:true, clientX:28, clientY:28, pointerId:1, pointerType:'mouse'}));
+    \\              d.body.dispatchEvent(new PointerEvent('pointerup', {bubbles:true, cancelable:true, clientX:28, clientY:28, pointerId:1, pointerType:'mouse'}));
+    \\              var cb = d.querySelector('input[type=checkbox], [role=checkbox], .cb-i, .mark');
+    \\              if (cb) cb.click();
+    \\            }.bind(null, doc), 200);
+    \\          }
+    \\        } catch(e) {}
+    \\      }
+    \\    }
+    \\  });
+    \\  // Also: if we're inside a challenge iframe (detected after navigation), auto-click on load
+    \\  function checkAndClick() {
+    \\    try {
+    \\      var href = location.href || '';
+    \\      if (href.indexOf('challenges.cloudflare.com') >= 0 || href.indexOf('challenge-platform') >= 0) {
+    \\        if (document.body) {
+    \\          var elems = document.querySelectorAll('*');
+    \\          for (var j = 0; j < elems.length; j++) {
+    \\            try { elems[j].dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, clientX:28, clientY:28})); } catch(e) {}
+    \\          }
+    \\          document.body.dispatchEvent(new PointerEvent('pointerdown', {bubbles:true, cancelable:true, clientX:28, clientY:28, pointerId:1, pointerType:'mouse'}));
+    \\          document.body.dispatchEvent(new PointerEvent('pointerup', {bubbles:true, cancelable:true, clientX:28, clientY:28, pointerId:1, pointerType:'mouse'}));
+    \\        }
+    \\      }
+    \\    } catch(e) {}
+    \\  }
+    \\  setTimeout(checkAndClick, 500);
+    \\  setTimeout(checkAndClick, 2000);
+    \\  setTimeout(checkAndClick, 5000);
+    \\})();
+    \\
+    \\} catch(e) { console.warn('[SP-CRASH]', e.message, e.stack ? e.stack.split('\n')[1] : ''); } // end main stealth block
 ;

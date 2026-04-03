@@ -18,9 +18,11 @@
 
 const std = @import("std");
 const js = @import("../js/js.zig");
+const Page = @import("../Page.zig");
+const GenericIterator = @import("collections/iterator.zig").Entry;
 
 pub fn registerTypes() []const type {
-    return &.{ PluginArray, Plugin, MimeTypeArray, MimeType };
+    return &.{ PluginArray, Plugin, MimeTypeArray, MimeType, ValueIterator, MimeTypeArray.MimeValueIterator };
 }
 
 const PluginArray = @This();
@@ -44,6 +46,24 @@ pub fn getByName(self: *PluginArray, name: []const u8) ?*Plugin {
     }
     return null;
 }
+
+pub fn values(self: *PluginArray, page: *Page) !*ValueIterator {
+    return ValueIterator.init(.{ .list = self }, page);
+}
+
+pub const ValueIterator = GenericIterator(PluginIterator, null);
+
+const PluginIterator = struct {
+    index: u32 = 0,
+    list: *PluginArray,
+
+    pub fn next(self: *PluginIterator, _: *Page) ?*Plugin {
+        if (self.index >= chrome_plugins.len) return null;
+        const plugin = &self.list._plugins[self.index];
+        self.index += 1;
+        return plugin;
+    }
+};
 
 pub const Plugin = struct {
     name: [:0]const u8 = "",
@@ -120,15 +140,34 @@ pub const MimeType = struct {
 };
 
 pub const MimeTypeArray = struct {
-    _pad: bool = false,
+    _mime_types: [2]MimeType = pdf_mime_types,
 
     pub fn getLength(_: *const MimeTypeArray) u32 {
         return pdf_mime_types.len;
     }
 
-    pub fn getAtIndex(_: *const MimeTypeArray, _: usize) ?*MimeType {
-        return null;
+    pub fn getAtIndex(self: *MimeTypeArray, index: usize) ?*MimeType {
+        if (index >= pdf_mime_types.len) return null;
+        return &self._mime_types[index];
     }
+
+    pub fn values(self: *MimeTypeArray, page: *Page) !*MimeValueIterator {
+        return MimeValueIterator.init(.{ .list = self }, page);
+    }
+
+    pub const MimeValueIterator = GenericIterator(MimeIterator, null);
+
+    const MimeIterator = struct {
+        index: u32 = 0,
+        list: *MimeTypeArray,
+
+        pub fn next(self: *MimeIterator, _: *Page) ?*MimeType {
+            if (self.index >= pdf_mime_types.len) return null;
+            const mt = &self.list._mime_types[self.index];
+            self.index += 1;
+            return mt;
+        }
+    };
 
     pub const JsApi = struct {
         pub const bridge = js.Bridge(MimeTypeArray);
@@ -141,6 +180,7 @@ pub const MimeTypeArray = struct {
 
         pub const length = bridge.accessor(MimeTypeArray.getLength, null, .{});
         pub const @"[int]" = bridge.indexed(MimeTypeArray.getAtIndex, null, .{ .null_as_undefined = true });
+        pub const symbol_iterator = bridge.iterator(MimeTypeArray.values, .{});
     };
 };
 
@@ -173,6 +213,7 @@ pub const JsApi = struct {
     pub const refresh = bridge.function(PluginArray.refresh, .{});
     pub const @"[int]" = bridge.indexed(PluginArray.getAtIndex, null, .{ .null_as_undefined = true });
     pub const @"[str]" = bridge.namedIndexed(PluginArray.getByName, null, null, .{ .null_as_undefined = true });
+    pub const symbol_iterator = bridge.iterator(PluginArray.values, .{});
     pub const item = bridge.function(_item, .{});
     fn _item(self: *PluginArray, index: i32) ?*Plugin {
         if (index < 0) {

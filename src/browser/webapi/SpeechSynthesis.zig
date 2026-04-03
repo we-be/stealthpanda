@@ -37,4 +37,5 @@ pub const JsApi = struct {
     pub const pending = bridge.accessor(SpeechSynthesis.getPending, null, .{});
     pub const speaking = bridge.accessor(SpeechSynthesis.getSpeaking, null, .{});
     pub const paused = bridge.accessor(SpeechSynthesis.getPaused, null, .{});
+    pub const getVoices = bridge.function(SpeechSynthesis.getVoices, .{});
 };

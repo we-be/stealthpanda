@@ -19,6 +19,8 @@
 const String = @import("../../../string.zig").String;
 
 const js = @import("../../js/js.zig");
+const Page = @import("../../Page.zig");
+const DOMRect = @import("../DOMRect.zig");
 
 const Node = @import("../Node.zig");
 const Element = @import("../Element.zig");
@@ -56,6 +58,14 @@ pub fn asNode(self: *Svg) *Node {
     return self.asElement().asNode();
 }
 
+pub fn getBBox(_: *Svg, page: *Page) !*DOMRect {
+    return page._factory.create(DOMRect{ ._x = 0, ._y = 0, ._width = 0, ._height = 0 });
+}
+
+pub fn getCTM(_: *Svg, page: *Page) !*DOMRect {
+    return page._factory.create(DOMRect{ ._x = 0, ._y = 0, ._width = 0, ._height = 0 });
+}
+
 pub const JsApi = struct {
     pub const bridge = js.Bridge(Svg);
 
@@ -64,6 +74,9 @@ pub const JsApi = struct {
         pub const prototype_chain = bridge.prototypeChain();
         pub var class_id: bridge.ClassId = undefined;
     };
+
+    pub const getBBox = bridge.function(Svg.getBBox, .{});
+    pub const getCTM = bridge.function(Svg.getCTM, .{});
 };
 
 const testing = @import("../../../testing.zig");

@@ -32,6 +32,7 @@ const MediaDevices = @import("MediaDevices.zig");
 const Navigator = @This();
 _pad: bool = false,
 _plugins: PluginArray = .{},
+_mime_types: PluginArray.MimeTypeArray = .{},
 _permissions: Permissions = .{},
 _storage: StorageManager = .{},
 _media_devices: MediaDevices = .{},
@@ -85,6 +86,10 @@ pub fn getStorage(self: *Navigator) *StorageManager {
 
 pub fn sendBeacon(_: *const Navigator, _: []const u8, _: ?[]const u8) bool {
     return true;
+}
+
+pub fn getMimeTypes(self: *Navigator) *PluginArray.MimeTypeArray {
+    return &self._mime_types;
 }
 
 pub fn getMediaDevices(self: *Navigator) *MediaDevices {
@@ -191,6 +196,7 @@ pub const JsApi = struct {
     pub const product = bridge.property("Gecko", .{ .template = false });
     pub const webdriver = bridge.property(false, .{ .template = false });
     pub const plugins = bridge.accessor(Navigator.getPlugins, null, .{});
+    pub const mimeTypes = bridge.accessor(Navigator.getMimeTypes, null, .{});
     pub const doNotTrack = bridge.property(null, .{ .template = false });
     pub const globalPrivacyControl = bridge.property(true, .{ .template = false });
     pub const registerProtocolHandler = bridge.function(Navigator.registerProtocolHandler, .{ .dom_exception = true });
