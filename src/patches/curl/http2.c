@@ -2282,6 +2282,18 @@ static CURLcode h2_submit(struct h2_stream_ctx **pstream,
     goto out;
   }
 
+  /* StealthPanda: Reorder pseudo-headers to match Chrome's m,a,s,p order.
+   * curl sends :method, :scheme, :authority, :path (m,s,a,p)
+   * Chrome sends :method, :authority, :scheme, :path (m,a,s,p)
+   * Swap nva[1] (:scheme) and nva[2] (:authority) if they exist */
+  if(nheader >= 3 &&
+     nva[1].namelen == 7 && !memcmp(nva[1].name, ":scheme", 7) &&
+     nva[2].namelen == 10 && !memcmp(nva[2].name, ":authority", 10)) {
+    nghttp2_nv tmp = nva[1];
+    nva[1] = nva[2];
+    nva[2] = tmp;
+  }
+
   h2_pri_spec(ctx, data, &pri_spec);
   if(!nghttp2_session_check_request_allowed(ctx->h2))
     CURL_TRC_CF(data, cf, "send request NOT allowed (via nghttp2)");
