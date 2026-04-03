@@ -3,10 +3,7 @@
 // Patches JS APIs that bot detectors probe to detect automation.
 
 pub const script: [:0]const u8 =
-    // CF VM resilience: safety net for edge cases where the VM's bytecode
-    // references handler table slots with random fill numbers.
-    // The atob fix (097b2c36) resolved the primary cause, but these
-    // patches remain as defense-in-depth.
+    \\
     \\(function() {
     \\  var _stub = function _s() { return _stub; };
     \\  _stub.bind = function() { return _stub; };
