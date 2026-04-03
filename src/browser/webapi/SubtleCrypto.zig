@@ -138,6 +138,7 @@ pub fn sign(
     data: []const u8, // ArrayBuffer.
     page: *Page,
 ) !js.Promise {
+    log.info(.js, "subtle.sign called", .{ .key_type = key._type, .data_len = data.len });
     return switch (key._type) {
         .hmac => return HMAC.sign(algo, key, data, page),
         .ecdsa => return ECDSA.sign(algo, key, data, page),
@@ -157,6 +158,7 @@ pub fn verify(
     data: []const u8, // ArrayBuffer.
     page: *Page,
 ) !js.Promise {
+    log.info(.js, "subtle.verify called", .{ .key_type = key._type, .sig_len = signature.len });
     if (algo.isECDSA()) {
         return switch (key._type) {
             .ecdsa => ECDSA.verify(algo, key, signature, data, page),
@@ -207,6 +209,7 @@ pub fn importKey(
     _: ?js.Value, // key_usages
     page: *Page,
 ) !js.Promise {
+    log.info(.js, "subtle.importKey called", .{ .format = format, .data_len = key_data.values.len });
     // Check if the algorithm is ECDSA
     if (algo) |a| {
         if (a.isECDSA()) {

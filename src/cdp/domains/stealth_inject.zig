@@ -87,20 +87,72 @@ pub const script: [:0]const u8 =
     \\    } catch(e) {}
     \\  }
     \\})();
-    // Track Turnstile iframe flow POST body and response
+    // Iframe debugging for Turnstile VM
     \\if (window !== window.top) {
+    \\  // Global error handler
+    \\  window.addEventListener('error', function(e) {
+    \\    console.warn('IF_ERR: ' + (e.message || '') + ' at ' + (e.filename || '').slice(-30) + ':' + (e.lineno || 0));
+    \\  });
+    \\  // Unhandled promise rejection handler
+    \\  window.addEventListener('unhandledrejection', function(e) {
+    \\    var r = e.reason || {};
+    \\    console.warn('IF_REJ: ' + (r.message || r.toString ? r.toString() : String(r)).substring(0, 80));
+    \\  });
+    \\  // Track postMessage received BY iframe FROM parent (non-invasive)
+    \\  window.addEventListener('message', function(e) {
+    \\    if (e.data && typeof e.data === 'object' && e.data.event) {
+    \\      console.warn('IF_PM_IN: ' + e.data.event);
+    \\    }
+    \\  });
+    \\  // Track large atob decodes (VM processes 365KB base64 response)
+    \\  var _origAtob = window.atob;
+    \\  var _atobCount = 0;
+    \\  window.atob = function(s) {
+    \\    _atobCount++;
+    \\    var result = _origAtob.apply(window, arguments);
+    \\    if (s && s.length > 1000) {
+    \\      // Check decoded output for correctness
+    \\      var highChars = 0;
+    \\      var maxCode = 0;
+    \\      for (var i = 0; i < Math.min(result.length, 1000); i++) {
+    \\        var c = result.charCodeAt(i);
+    \\        if (c > 127) highChars++;
+    \\        if (c > maxCode) maxCode = c;
+    \\      }
+    \\      console.warn('IF_ATOB: in=' + s.length + ' out=' + result.length + ' hi=' + highChars + ' max=' + maxCode);
+    \\    }
+    \\    return result;
+    \\  };
+    \\  // Track property accesses that return undefined on common objects
+    \\  var _checkedProps = {};
+    \\  var _propCheckTimer = setTimeout(function reportProps() {
+    \\    var keys = Object.keys(_checkedProps);
+    \\    if (keys.length > 0) {
+    \\      console.warn('IF_UNDEF: ' + keys.slice(0,20).join(','));
+    \\      _checkedProps = {};
+    \\    }
+    \\    _propCheckTimer = setTimeout(reportProps, 3000);
+    \\  }, 3000);
+    \\  // Override property access on document to catch missing APIs
+    \\  try {
+    \\    var _origDocGEBI = document.getElementById;
+    \\    document.getElementById = function(id) {
+    \\      var r = _origDocGEBI.apply(document, arguments);
+    \\      if (!r && id) _checkedProps['gEBI:' + id] = 1;
+    \\      return r;
+    \\    };
+    \\  } catch(e) {}
+    \\  // Track ALL XHR requests from iframe
     \\  var _origXHRSend = XMLHttpRequest.prototype.send;
     \\  var _origXHROpen = XMLHttpRequest.prototype.open;
     \\  XMLHttpRequest.prototype.open = function(m, u) { this._stUrl = u; return _origXHROpen.apply(this, arguments); };
     \\  XMLHttpRequest.prototype.send = function(body) {
     \\    if (this._stUrl && this._stUrl.indexOf('flow/ov1') >= 0 && body) {
-    \\      // Check for high bytes in the POST body
     \\      var highBytes = 0;
     \\      for (var i = 0; i < body.length; i++) {
     \\        if (body.charCodeAt(i) > 127) highBytes++;
     \\      }
     \\      console.warn('IF_BODY: len=' + body.length + ' high=' + highBytes + ' first30=' + body.substring(0, 30));
-    \\      // Also check response
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
@@ -113,6 +165,29 @@ pub const script: [:0]const u8 =
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
     \\  };
+    \\  // Track setTimeout usage (count active timers)
+    \\  var _stCount = 0;
+    \\  var _origST = window.setTimeout;
+    \\  window.setTimeout = function(fn, ms) {
+    \\    _stCount++;
+    \\    if (_stCount <= 5 || _stCount % 10 === 0) {
+    \\      console.warn('IF_TIMER: count=' + _stCount + ' ms=' + ms);
+    \\    }
+    \\    return _origST.apply(window, arguments);
+    \\  };
+    \\  // Track crypto.subtle usage
+    \\  if (window.crypto && window.crypto.subtle) {
+    \\    var _cs = window.crypto.subtle;
+    \\    ['verify','sign','importKey','digest','encrypt','decrypt','deriveKey','deriveBits','generateKey','exportKey'].forEach(function(m) {
+    \\      var _orig = _cs[m];
+    \\      if (_orig) {
+    \\        _cs[m] = function() {
+    \\          console.warn('IF_CRYPTO: ' + m + ' args=' + arguments.length);
+    \\          return _orig.apply(_cs, arguments);
+    \\        };
+    \\      }
+    \\    });
+    \\  }
     \\}
     \\
     // Fix performance.timing — all timestamps should be realistic Unix timestamps
@@ -494,16 +569,28 @@ pub const script: [:0]const u8 =
     \\  window.Blob.prototype = _origBlob.prototype;
     \\  var _origWorker = window.Worker;
     \\  window.Worker = function(url) {
+    \\    console.warn('IF_WORKER: created url=' + (typeof url === 'string' ? url.substring(0,30) : typeof url));
     \\    var _code = null, _msgHandler = null;
+    \\    var _pmRetries = 0;
     \\    var worker = {
     \\      onmessage: null, onerror: null,
     \\      _listeners: {},
     \\      postMessage: function(data) {
-    \\        if (!_code) { setTimeout(function() { worker.postMessage(data); }, 50); return; }
+    \\        if (!_code) {
+    \\          _pmRetries++;
+    \\          if (_pmRetries <= 3 || _pmRetries % 20 === 0) {
+    \\            console.warn('IF_WORKER: pm retry ' + _pmRetries + ' (code not loaded)');
+    \\          }
+    \\          setTimeout(function() { worker.postMessage(data); }, 50);
+    \\          return;
+    \\        }
     \\        try {
     \\          var scope = { postMessage: function(msg) {
+    \\            console.warn('IF_WORKER: worker.postMessage ' + typeof msg);
     \\            setTimeout(function() {
     \\              var ev = new MessageEvent('message', {data: msg});
+    \\              // Worker messages must appear trusted for CF's isTrusted check
+    \\              try { Object.defineProperty(ev, 'isTrusted', {value: true}); } catch(e2) {}
     \\              if (worker.onmessage) worker.onmessage(ev);
     \\              (worker._listeners['message'] || []).forEach(function(fn) { fn(ev); });
     \\            }, 1);
@@ -519,13 +606,26 @@ pub const script: [:0]const u8 =
     \\          console: console, setTimeout: setTimeout, setInterval: setInterval,
     \\          clearTimeout: clearTimeout, clearInterval: clearInterval };
     \\          scope.self = scope; scope.globalThis = scope;
+    \\          scope.onmessage = null; scope.onerror = null;
+    \\          scope.navigator = window.navigator;
+    \\          scope.location = {href: '', origin: '', protocol: 'https:'};
+    \\          scope.String = String; scope.Number = Number; scope.Object = Object;
+    \\          scope.Array = Array; scope.JSON = JSON; scope.Date = Date;
+    \\          scope.Error = Error; scope.TypeError = TypeError;
+    \\          scope.Promise = Promise; scope.Map = Map; scope.Set = Set;
+    \\          scope.Blob = Blob; scope.Response = Response;
+    \\          scope.fetch = fetch; scope.Request = Request;
+    \\          scope.URL = URL; scope.URLSearchParams = URLSearchParams;
+    \\          scope.Headers = typeof Headers !== 'undefined' ? Headers : undefined;
+    \\          // Wrap code in with(self) so onmessage= assigns to scope
+    \\          var wrappedCode = 'with(self){' + _code + '}';
     \\          var fn = new Function('self','postMessage','addEventListener',
     \\            'removeEventListener','close','importScripts',
     \\            'crypto','performance','Math',
     \\            'Uint8Array','Uint32Array','Int32Array','Float64Array',
     \\            'ArrayBuffer','DataView','TextEncoder','TextDecoder',
     \\            'atob','btoa','console','setTimeout','setInterval',
-    \\            'clearTimeout','clearInterval','globalThis', _code);
+    \\            'clearTimeout','clearInterval','globalThis', wrappedCode);
     \\          fn(scope,scope.postMessage,scope.addEventListener,
     \\            scope.removeEventListener,scope.close,scope.importScripts,
     \\            window.crypto,window.performance,Math,
@@ -533,8 +633,16 @@ pub const script: [:0]const u8 =
     \\            ArrayBuffer,DataView,TextEncoder,TextDecoder,
     \\            window.atob,window.btoa,console,setTimeout,setInterval,
     \\            clearTimeout,clearInterval,scope);
-    \\          if (_msgHandler) _msgHandler(new MessageEvent('message', {data: data}));
+    \\          console.warn('IF_WORKER: executed, onmsg=' + (typeof scope.onmessage));
+    \\          // Use scope.onmessage if addEventListener wasn't used
+    \\          var handler = _msgHandler || scope.onmessage;
+    \\          if (handler) {
+    \\            var mev = new MessageEvent('message', {data: data});
+    \\            try { Object.defineProperty(mev, 'isTrusted', {value: true}); } catch(e3) {}
+    \\            handler(mev);
+    \\          }
     \\        } catch(e) {
+    \\          console.warn('IF_WORKER: code ERROR ' + (e.message || e).substring(0, 60));
     \\          if (worker.onerror) worker.onerror({message: e.message, error: e});
     \\        }
     \\      },
@@ -549,9 +657,15 @@ pub const script: [:0]const u8 =
     \\      }
     \\    };
     \\    if (typeof url === 'string' && url.startsWith('blob:')) {
+    \\      console.warn('IF_WORKER: fetching blob');
     \\      fetch(url).then(function(r) { return r.text(); }).then(function(code) {
     \\        _code = code;
-    \\      }).catch(function() {});
+    \\        console.warn('IF_WORKER: code loaded len=' + code.length + ' content=' + code.substring(0,60));
+    \\      }).catch(function(e) {
+    \\        console.warn('IF_WORKER: fetch FAILED ' + (e.message || e));
+    \\      });
+    \\    } else {
+    \\      console.warn('IF_WORKER: non-blob url');
     \\    }
     \\    return worker;
     \\  };
