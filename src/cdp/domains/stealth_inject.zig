@@ -3,6 +3,27 @@
 // Patches JS APIs that bot detectors probe to detect automation.
 
 pub const script: [:0]const u8 =
+    // Intercept property access on non-function values to detect
+    // when the CF VM tries to call .bind() on a number/non-function
+    \\(function() {
+    \\  // CF VM resilience: The encrypted bytecode VM occasionally accesses handler
+    \\  // table slots that contain random fill numbers instead of handler functions.
+    \\  // This happens when the first bytecode instruction references a slot that
+    \\  // hasn't been assigned a handler. We patch Number.prototype to handle these
+    \\  // cases gracefully instead of crashing with TypeError.
+    \\  (function() {
+    \\    var _noop = function() { return undefined; };
+    \\    var _bindNoop = function() { return _noop; };
+    \\    Object.defineProperty(Number.prototype, 'bind', {value: _bindNoop, writable: true, configurable: true, enumerable: false});
+    \\    Object.defineProperty(Number.prototype, 'call', {value: _noop, writable: true, configurable: true, enumerable: false});
+    \\    Object.defineProperty(Number.prototype, 'apply', {value: _noop, writable: true, configurable: true, enumerable: false});
+    \\    ['pop','shift','splice','push','unshift','indexOf'].forEach(function(m) {
+    \\      if (typeof Number.prototype[m] === 'undefined') {
+    \\        Object.defineProperty(Number.prototype, m, {value: _noop, writable: true, configurable: true, enumerable: false});
+    \\      }
+    \\    });
+    \\  })();
+    \\})();
     \\
     // Lock navigator.webdriver to false
     \\Object.defineProperty(navigator, 'webdriver', {

@@ -812,8 +812,11 @@ const ScheduleCallback = struct {
                 };
             },
             .normal => {
-                ls.toLocal(self.cb).call(void, self.params) catch |err| {
-                    log.warn(.js, "window.timer", .{ .name = self.name, .err = err });
+                var caught: js.TryCatch.Caught = undefined;
+                ls.toLocal(self.cb).tryCall(void, self.params, &caught) catch |err| {
+                    // StealthPanda: detailed error logging for timer callbacks
+                    // This captures the full exception message including CF VM errors
+                    log.warn(.js, "window.timer", .{ .name = self.name, .err = err, .caught = caught });
                 };
             },
         }
