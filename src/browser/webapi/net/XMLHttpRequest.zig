@@ -361,8 +361,37 @@ pub fn setResponseType(self: *XMLHttpRequest, value: []const u8) void {
     }
 }
 
-pub fn getResponseText(self: *const XMLHttpRequest) []const u8 {
-    return self._response_data.items;
+pub fn getResponseText(self: *XMLHttpRequest, page: *Page) ![]const u8 {
+    const data = self._response_data.items;
+    if (data.len == 0) return data;
+
+    // Check if data contains any bytes >= 128 that need Latin-1 → UTF-8 encoding.
+    // The V8 bridge creates strings via NewFromUtf8, so raw bytes >= 128 would be
+    // treated as invalid UTF-8 and replaced with U+FFFD.
+    // For XHR responseText, the spec says the response should be decoded according
+    // to the response's charset. If the response is binary (e.g., encrypted data),
+    // each byte should map to its Latin-1 code point.
+    var high_byte_count: usize = 0;
+    for (data) |b| {
+        if (b >= 128) high_byte_count += 1;
+    }
+    if (high_byte_count == 0) return data;
+
+    // Encode Latin-1 bytes as UTF-8
+    const utf8_len = data.len + high_byte_count;
+    const utf8 = try page.call_arena.alloc(u8, utf8_len);
+    var j: usize = 0;
+    for (data) |b| {
+        if (b < 128) {
+            utf8[j] = b;
+            j += 1;
+        } else {
+            utf8[j] = 0xC0 | (b >> 6);
+            utf8[j + 1] = 0x80 | (b & 0x3F);
+            j += 2;
+        }
+    }
+    return utf8[0..j];
 }
 
 pub fn getStatus(self: *const XMLHttpRequest) u16 {
@@ -387,7 +416,32 @@ pub fn getResponse(self: *XMLHttpRequest, page: *Page) !?Response {
         return res;
     }
 
-    const data = self._response_data.items;
+    const raw_data = self._response_data.items;
+    // For text responses, encode Latin-1 bytes as UTF-8 (same fix as responseText)
+    const data = blk: {
+        if (self._response_type == .text) {
+            var high: usize = 0;
+            for (raw_data) |b| {
+                if (b >= 128) high += 1;
+            }
+            if (high > 0) {
+                const utf8 = try page.call_arena.alloc(u8, raw_data.len + high);
+                var j: usize = 0;
+                for (raw_data) |b| {
+                    if (b < 128) {
+                        utf8[j] = b;
+                        j += 1;
+                    } else {
+                        utf8[j] = 0xC0 | (b >> 6);
+                        utf8[j + 1] = 0x80 | (b & 0x3F);
+                        j += 2;
+                    }
+                }
+                break :blk utf8[0..j];
+            }
+        }
+        break :blk raw_data;
+    };
     const res: Response = switch (self._response_type) {
         .text => .{ .text = data },
         .json => blk: {
