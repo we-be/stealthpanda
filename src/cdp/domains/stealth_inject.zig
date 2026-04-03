@@ -87,6 +87,21 @@ pub const script: [:0]const u8 =
     \\    } catch(e) {}
     \\  }
     \\})();
+    // Parent-side: track Turnstile challenge events
+    \\if (window === window.top) {
+    \\  window.addEventListener('message', function(e) {
+    \\    if (e.data && typeof e.data === 'object' && e.data.event && e.data.source === 'cloudflare-challenge') {
+    \\      if (e.data.event !== 'meow' && e.data.event !== 'food') {
+    \\        var extra = '';
+    \\        if (e.data.event === 'fail' || e.data.event === 'turnstileResults') {
+    \\          extra = ' code=' + (e.data.code || 'none');
+    \\          extra += ' cfChlOut=' + String(e.data.cfChlOut || '').substring(0,40);
+    \\        }
+    \\        console.warn('PAR_IN: ' + e.data.event + extra);
+    \\      }
+    \\    }
+    \\  });
+    \\}
     // Iframe debugging for Turnstile VM
     \\if (window !== window.top) {
     \\  // Global error handler
@@ -165,7 +180,7 @@ pub const script: [:0]const u8 =
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
     \\  };
-    \\  // Track setTimeout usage (count active timers)
+    \\  // Track setTimeout usage
     \\  var _stCount = 0;
     \\  var _origST = window.setTimeout;
     \\  window.setTimeout = function(fn, ms) {
@@ -175,6 +190,20 @@ pub const script: [:0]const u8 =
     \\    }
     \\    return _origST.apply(window, arguments);
     \\  };
+    \\  // Intercept postMessage to suppress overrunBegin/overrunEnd
+    \\  // The POW is too slow on main thread, suppress the timeout signal
+    \\  var _origPM = window.parent.postMessage.bind(window.parent);
+    \\  try {
+    \\    window.parent.postMessage = function(msg, origin) {
+    \\      if (msg && typeof msg === 'object' && msg.event) {
+    \\        if (msg.event === 'overrunBegin' || msg.event === 'overrunEnd') {
+    \\          console.warn('IF_SUPPRESS: ' + msg.event);
+    \\          return;
+    \\        }
+    \\      }
+    \\      return _origPM(msg, origin);
+    \\    };
+    \\  } catch(e) { console.warn('IF_PM_WRAP_ERR: ' + e.message); }
     \\  // Track crypto.subtle usage
     \\  if (window.crypto && window.crypto.subtle) {
     \\    var _cs = window.crypto.subtle;
@@ -586,11 +615,10 @@ pub const script: [:0]const u8 =
     \\        }
     \\        try {
     \\          var scope = { postMessage: function(msg) {
-    \\            console.warn('IF_WORKER: worker.postMessage ' + typeof msg);
     \\            setTimeout(function() {
-    \\              var ev = new MessageEvent('message', {data: msg});
-    \\              // Worker messages must appear trusted for CF's isTrusted check
-    \\              try { Object.defineProperty(ev, 'isTrusted', {value: true}); } catch(e2) {}
+    \\              var ev = {data: msg, isTrusted: true, origin: '', source: null, type: 'message',
+    \\                     ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
+    \\                     stopImmediatePropagation: function(){}};
     \\              if (worker.onmessage) worker.onmessage(ev);
     \\              (worker._listeners['message'] || []).forEach(function(fn) { fn(ev); });
     \\            }, 1);
@@ -633,12 +661,18 @@ pub const script: [:0]const u8 =
     \\            ArrayBuffer,DataView,TextEncoder,TextDecoder,
     \\            window.atob,window.btoa,console,setTimeout,setInterval,
     \\            clearTimeout,clearInterval,scope);
-    \\          console.warn('IF_WORKER: executed, onmsg=' + (typeof scope.onmessage));
     \\          // Use scope.onmessage if addEventListener wasn't used
     \\          var handler = _msgHandler || scope.onmessage;
     \\          if (handler) {
     \\            var mev = new MessageEvent('message', {data: data});
-    \\            try { Object.defineProperty(mev, 'isTrusted', {value: true}); } catch(e3) {}
+    \\            var itOk = false;
+    \\            try { Object.defineProperty(mev, 'isTrusted', {value: true}); itOk = mev.isTrusted === true; } catch(e3) { itOk = false; }
+    \\            if (!itOk) {
+    \\              // Fallback: create a plain object that looks like a MessageEvent
+    \\              mev = {data: data, isTrusted: true, origin: '', source: null, type: 'message',
+    \\                     ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
+    \\                     stopImmediatePropagation: function(){}};
+    \\            }
     \\            handler(mev);
     \\          }
     \\        } catch(e) {
