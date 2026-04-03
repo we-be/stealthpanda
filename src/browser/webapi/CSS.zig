@@ -168,6 +168,7 @@ pub const JsApi = struct {
         pub const prototype_chain = bridge.prototypeChain();
         pub var class_id: bridge.ClassId = undefined;
         pub const empty_with_no_proto = true;
+        pub const enumerable = false;
     };
 
     pub const escape = bridge.function(CSS.escape, .{});

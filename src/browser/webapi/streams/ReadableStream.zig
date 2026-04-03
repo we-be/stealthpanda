@@ -406,6 +406,7 @@ pub const AsyncIterator = struct {
             pub const name = "ReadableStreamAsyncIterator";
             pub const prototype_chain = bridge.prototypeChain();
             pub var class_id: bridge.ClassId = undefined;
+            pub const enumerable = false;
         };
 
         pub const next = bridge.function(ReadableStream.AsyncIterator.next, .{});

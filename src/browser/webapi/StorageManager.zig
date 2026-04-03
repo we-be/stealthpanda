@@ -53,6 +53,7 @@ const StorageEstimate = struct {
             pub const name = "StorageEstimate";
             pub const prototype_chain = bridge.prototypeChain();
             pub var class_id: bridge.ClassId = undefined;
+            pub const enumerable = false;
         };
         pub const quota = bridge.accessor(getQuota, null, .{});
         pub const usage = bridge.accessor(getUsage, null, .{});
