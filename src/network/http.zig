@@ -494,6 +494,8 @@ pub const Handles = struct {
         errdefer libcurl.curl_multi_cleanup(multi) catch {};
 
         try libcurl.curl_multi_setopt(multi, .max_host_connections, config.httpMaxHostOpen());
+        // Set Chrome-like H2 MAX_CONCURRENT_STREAMS (Chrome uses 1000)
+        try libcurl.curl_multi_setopt(multi, .max_concurrent_streams, @as(c_long, 1000));
 
         return .{ .multi = multi };
     }
