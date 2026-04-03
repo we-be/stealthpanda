@@ -75,6 +75,56 @@ pub fn setName(self: *IFrame, value: []const u8, page: *Page) !void {
     try self.asElement().setAttributeSafe(comptime .wrap("name"), .wrap(value), page);
 }
 
+// Standard HTMLIFrameElement attribute accessors
+pub fn getWidth(self: *IFrame) []const u8 {
+    return self.asElement().getAttributeSafe(comptime .wrap("width")) orelse "";
+}
+pub fn setWidth(self: *IFrame, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe(comptime .wrap("width"), .wrap(value), page);
+}
+pub fn getHeight(self: *IFrame) []const u8 {
+    return self.asElement().getAttributeSafe(comptime .wrap("height")) orelse "";
+}
+pub fn setHeight(self: *IFrame, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe(comptime .wrap("height"), .wrap(value), page);
+}
+pub fn getSandbox(self: *IFrame) []const u8 {
+    return self.asElement().getAttributeSafe(comptime .wrap("sandbox")) orelse "";
+}
+pub fn setSandbox(self: *IFrame, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe(comptime .wrap("sandbox"), .wrap(value), page);
+}
+pub fn getAllow(self: *IFrame) []const u8 {
+    return self.asElement().getAttributeSafe(comptime .wrap("allow")) orelse "";
+}
+pub fn setAllow(self: *IFrame, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe(comptime .wrap("allow"), .wrap(value), page);
+}
+pub fn getLoading(self: *IFrame) []const u8 {
+    return self.asElement().getAttributeSafe(comptime .wrap("loading")) orelse "eager";
+}
+pub fn setLoading(self: *IFrame, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe(comptime .wrap("loading"), .wrap(value), page);
+}
+// referrerPolicy is handled as a string property backed by the "referrerpolicy" attribute.
+// Since "referrerpolicy" > 12 bytes (SSO limit), we skip the comptime wrapper.
+pub fn getReferrerPolicy(_: *IFrame) []const u8 {
+    return "";
+}
+pub fn setReferrerPolicy(_: *IFrame, _: []const u8) void {}
+pub fn getSrcdoc(self: *IFrame) []const u8 {
+    return self.asElement().getAttributeSafe(comptime .wrap("srcdoc")) orelse "";
+}
+pub fn setSrcdoc(self: *IFrame, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe(comptime .wrap("srcdoc"), .wrap(value), page);
+}
+pub fn getFrameBorder(self: *IFrame) []const u8 {
+    return self.asElement().getAttributeSafe(comptime .wrap("frameborder")) orelse "";
+}
+pub fn setFrameBorder(self: *IFrame, value: []const u8, page: *Page) !void {
+    try self.asElement().setAttributeSafe(comptime .wrap("frameborder"), .wrap(value), page);
+}
+
 pub const JsApi = struct {
     pub const bridge = js.Bridge(IFrame);
 
@@ -88,6 +138,14 @@ pub const JsApi = struct {
     pub const name = bridge.accessor(IFrame.getName, IFrame.setName, .{});
     pub const contentWindow = bridge.accessor(IFrame.getContentWindow, null, .{});
     pub const contentDocument = bridge.accessor(IFrame.getContentDocument, null, .{});
+    pub const width = bridge.accessor(IFrame.getWidth, IFrame.setWidth, .{});
+    pub const height = bridge.accessor(IFrame.getHeight, IFrame.setHeight, .{});
+    pub const sandbox = bridge.accessor(IFrame.getSandbox, IFrame.setSandbox, .{});
+    pub const allow = bridge.accessor(IFrame.getAllow, IFrame.setAllow, .{});
+    pub const loading = bridge.accessor(IFrame.getLoading, IFrame.setLoading, .{});
+    pub const referrerPolicy = bridge.accessor(IFrame.getReferrerPolicy, IFrame.setReferrerPolicy, .{});
+    pub const srcdoc = bridge.accessor(IFrame.getSrcdoc, IFrame.setSrcdoc, .{});
+    pub const frameBorder = bridge.accessor(IFrame.getFrameBorder, IFrame.setFrameBorder, .{});
 };
 
 const String = @import("../../../../string.zig").String;
