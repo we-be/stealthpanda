@@ -18,6 +18,7 @@
 
 //! This file provides various arguments needed for crypto APIs.
 
+const std = @import("std");
 const js = @import("../../js/js.zig");
 
 const CryptoKey = @import("../CryptoKey.zig");
@@ -73,8 +74,16 @@ pub const Derive = union(enum) {
     ecdh_or_x25519: Init.EcdhKeyDeriveParams,
 };
 
-/// For `sign()` functionality.
+/// For `sign()` and `verify()` functionality.
 pub const Sign = union(enum) {
+    /// ECDSA with hash: {name: "ECDSA", hash: {name: "SHA-256"}} or {name: "ECDSA", hash: "SHA-256"}
+    ecdsa: struct {
+        name: []const u8,
+        hash: union(enum) {
+            string: []const u8,
+            object: struct { name: []const u8 },
+        },
+    },
     string: []const u8,
     object: struct { name: []const u8 },
 
@@ -82,10 +91,69 @@ pub const Sign = union(enum) {
         const name = switch (self) {
             .string => |string| string,
             .object => |object| object.name,
+            .ecdsa => return false,
         };
 
         if (name.len < 4) return false;
         const hmac: u32 = @bitCast([4]u8{ 'H', 'M', 'A', 'C' });
         return @as(u32, @bitCast(name[0..4].*)) == hmac;
+    }
+
+    pub fn isECDSA(self: Sign) bool {
+        return switch (self) {
+            .ecdsa => true,
+            .string => |s| std.mem.eql(u8, s, "ECDSA"),
+            .object => |o| std.mem.eql(u8, o.name, "ECDSA"),
+        };
+    }
+
+    pub fn getHashName(self: Sign) ?[]const u8 {
+        return switch (self) {
+            .ecdsa => |e| switch (e.hash) {
+                .string => |s| s,
+                .object => |o| o.name,
+            },
+            else => null,
+        };
+    }
+};
+
+/// For `importKey()` algorithm parameter.
+pub const Import = union(enum) {
+    /// ECDSA: {name: "ECDSA", namedCurve: "P-256"}
+    ecdsa_import: struct {
+        name: []const u8,
+        namedCurve: []const u8,
+    },
+    /// HMAC: {name: "HMAC", hash: "SHA-256", length: 256}
+    hmac_import: Init.HmacKeyGen,
+    /// Simple string like "AES-GCM"
+    string: []const u8,
+    /// Object with just name: {name: "AES-GCM"}
+    object: struct { name: []const u8 },
+
+    pub fn getName(self: Import) []const u8 {
+        return switch (self) {
+            .ecdsa_import => |e| e.name,
+            .hmac_import => |h| h.name,
+            .string => |s| s,
+            .object => |o| o.name,
+        };
+    }
+
+    pub fn isECDSA(self: Import) bool {
+        return switch (self) {
+            .ecdsa_import => true,
+            .string => |s| std.mem.eql(u8, s, "ECDSA"),
+            .object => |o| std.mem.eql(u8, o.name, "ECDSA"),
+            else => false,
+        };
+    }
+
+    pub fn getNamedCurve(self: Import) ?[]const u8 {
+        return switch (self) {
+            .ecdsa_import => |e| e.namedCurve,
+            else => null,
+        };
     }
 };

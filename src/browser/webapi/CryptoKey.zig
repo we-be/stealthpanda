@@ -53,7 +53,7 @@ pub const Pair = struct {
 /// Key-creating functions expect this format.
 pub const KeyOrPair = union(enum) { key: *CryptoKey, pair: Pair };
 
-pub const Type = enum(u8) { hmac, rsa, x25519, raw };
+pub const Type = enum(u8) { hmac, rsa, x25519, raw, ecdsa };
 
 /// Changing the names of fields would affect bitmask creation.
 pub const Usages = struct {

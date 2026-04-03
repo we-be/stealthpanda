@@ -60,6 +60,8 @@ pub fn fromError(err: anyerror) ?DOMException {
         error.InvalidNodeType => .{ ._code = .invalid_node_type_error },
         error.DataClone => .{ ._code = .data_clone_error },
         error.InvalidAccessError => .{ ._code = .invalid_access_error },
+        error.DataError => .{ ._code = .none, ._custom_name = "DataError" },
+        error.OperationError => .{ ._code = .none, ._custom_name = "OperationError" },
         else => null,
     };
 }

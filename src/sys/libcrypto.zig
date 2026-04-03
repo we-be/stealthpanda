@@ -214,6 +214,69 @@ pub const EVP_PKEY = struct_evp_pkey_st;
 pub const struct_evp_pkey_ctx_st = opaque {};
 pub const EVP_PKEY_CTX = struct_evp_pkey_ctx_st;
 
+// EC types
+pub const EC_GROUP = opaque {};
+pub const EC_POINT = opaque {};
+pub const ECDSA_SIG = extern struct {
+    r: [*c]BIGNUM,
+    s: [*c]BIGNUM,
+};
+
+// EC curve NIDs
+pub const NID_X9_62_prime256v1 = 415; // P-256
+pub const NID_secp384r1 = 715; // P-384
+pub const NID_secp521r1 = 716; // P-521
+pub const EVP_PKEY_EC = 408;
+
+// EC group/point functions
+pub extern fn EC_GROUP_new_by_curve_name(nid: c_int) ?*EC_GROUP;
+pub extern fn EC_GROUP_free(group: ?*EC_GROUP) void;
+pub extern fn EC_POINT_new(group: ?*const EC_GROUP) ?*EC_POINT;
+pub extern fn EC_POINT_free(point: ?*EC_POINT) void;
+pub extern fn EC_POINT_oct2point(group: ?*const EC_GROUP, point: ?*EC_POINT, buf: [*]const u8, len: usize, ctx: ?*anyopaque) c_int;
+
+// EC key functions
+pub extern fn EC_KEY_new_by_curve_name(nid: c_int) ?*EC_KEY;
+pub extern fn EC_KEY_free(key: ?*EC_KEY) void;
+pub extern fn EC_KEY_set_public_key(key: ?*EC_KEY, pub_key: ?*const EC_POINT) c_int;
+pub extern fn EC_KEY_set_private_key(key: ?*EC_KEY, priv_key: ?*const BIGNUM) c_int;
+
+// EVP_PKEY construction
+pub extern fn EVP_PKEY_new() ?*EVP_PKEY;
+pub extern fn EVP_PKEY_set1_EC_KEY(pkey: ?*EVP_PKEY, key: ?*EC_KEY) c_int;
+
+// SPKI (SubjectPublicKeyInfo) DER import
+pub extern fn d2i_PUBKEY(out: ?*?*EVP_PKEY, inp: *[*]const u8, len: c_long) ?*EVP_PKEY;
+
+// CBS (Crypto ByteString) — BoringSSL native API for parsing DER
+pub const CBS = extern struct {
+    data: [*]const u8,
+    len: usize,
+};
+pub extern fn CBS_init(cbs: *CBS, data: [*]const u8, len: usize) void;
+pub extern fn EVP_parse_public_key(cbs: *CBS) ?*EVP_PKEY;
+
+// Digest verify (for ECDSA/RSA signature verification)
+pub extern fn EVP_DigestVerifyInit(ctx: ?*EVP_MD_CTX, pctx: ?*?*EVP_PKEY_CTX, typ: ?*const EVP_MD, e: ?*ENGINE, pkey: ?*EVP_PKEY) c_int;
+pub extern fn EVP_DigestVerify(ctx: ?*EVP_MD_CTX, sig: [*]const u8, sig_len: usize, data: [*]const u8, data_len: usize) c_int;
+
+// BIGNUM functions for signature format conversion
+pub extern fn BN_new() ?*BIGNUM;
+pub extern fn BN_free(bn: ?*BIGNUM) void;
+pub extern fn BN_bin2bn(s: [*]const u8, len: c_int, ret: ?*BIGNUM) ?*BIGNUM;
+pub extern fn BN_num_bytes(bn: ?*const BIGNUM) c_int;
+pub extern fn BN_bn2bin(bn: ?*const BIGNUM, to: [*]u8) c_int;
+
+// ECDSA signature functions (for P1363 ↔ DER conversion)
+pub extern fn ECDSA_SIG_new() ?*ECDSA_SIG;
+pub extern fn ECDSA_SIG_free(sig: ?*ECDSA_SIG) void;
+pub extern fn i2d_ECDSA_SIG(sig: ?*const ECDSA_SIG, outp: ?*[*]u8) c_int;
+
+// Error reporting
+pub extern fn ERR_get_error() c_ulong;
+pub extern fn ERR_error_string_n(e: c_ulong, buf: [*]u8, len: usize) void;
+pub extern fn ERR_clear_error() void;
+
 pub extern fn RAND_bytes(buf: [*]u8, len: usize) c_int;
 
 pub extern fn EVP_sha1() *const EVP_MD;

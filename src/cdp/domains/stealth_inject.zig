@@ -87,6 +87,33 @@ pub const script: [:0]const u8 =
     \\    } catch(e) {}
     \\  }
     \\})();
+    // Track Turnstile iframe flow POST body and response
+    \\if (window !== window.top) {
+    \\  var _origXHRSend = XMLHttpRequest.prototype.send;
+    \\  var _origXHROpen = XMLHttpRequest.prototype.open;
+    \\  XMLHttpRequest.prototype.open = function(m, u) { this._stUrl = u; return _origXHROpen.apply(this, arguments); };
+    \\  XMLHttpRequest.prototype.send = function(body) {
+    \\    if (this._stUrl && this._stUrl.indexOf('flow/ov1') >= 0 && body) {
+    \\      // Check for high bytes in the POST body
+    \\      var highBytes = 0;
+    \\      for (var i = 0; i < body.length; i++) {
+    \\        if (body.charCodeAt(i) > 127) highBytes++;
+    \\      }
+    \\      console.warn('IF_BODY: len=' + body.length + ' high=' + highBytes + ' first30=' + body.substring(0, 30));
+    \\      // Also check response
+    \\      var xhr = this;
+    \\      xhr.addEventListener('load', function() {
+    \\        var rsp = xhr.responseText || '';
+    \\        var rspHigh = 0;
+    \\        for (var j = 0; j < rsp.length; j++) {
+    \\          if (rsp.charCodeAt(j) > 127) rspHigh++;
+    \\        }
+    \\        console.warn('IF_RSP: len=' + rsp.length + ' high=' + rspHigh + ' first30=' + rsp.substring(0, 30));
+    \\      });
+    \\    }
+    \\    return _origXHRSend.apply(this, arguments);
+    \\  };
+    \\}
     \\
     // Fix performance.timing — all timestamps should be realistic Unix timestamps
     \\(function() {

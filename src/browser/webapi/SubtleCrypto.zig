@@ -28,6 +28,7 @@ const CryptoKey = @import("CryptoKey.zig");
 
 const algorithm = @import("crypto/algorithm.zig");
 const HMAC = @import("crypto/HMAC.zig");
+const ECDSA = @import("crypto/ECDSA.zig");
 const X25519 = @import("crypto/X25519.zig");
 
 /// The SubtleCrypto interface of the Web Crypto API provides a number of low-level
@@ -138,8 +139,8 @@ pub fn sign(
     page: *Page,
 ) !js.Promise {
     return switch (key._type) {
-        // Call sign for HMAC.
         .hmac => return HMAC.sign(algo, key, data, page),
+        .ecdsa => return ECDSA.sign(algo, key, data, page),
         else => {
             log.warn(.not_implemented, "SubtleCrypto.sign", .{ .key_type = key._type });
             return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.InvalidAccessError } });
@@ -156,6 +157,13 @@ pub fn verify(
     data: []const u8, // ArrayBuffer.
     page: *Page,
 ) !js.Promise {
+    if (algo.isECDSA()) {
+        return switch (key._type) {
+            .ecdsa => ECDSA.verify(algo, key, signature, data, page),
+            else => page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.InvalidAccessError } }),
+        };
+    }
+
     if (!algo.isHMAC()) {
         return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.InvalidAccessError } });
     }
@@ -189,17 +197,34 @@ pub fn digest(_: *const SubtleCrypto, algo: []const u8, data: js.TypedArray(u8),
 }
 
 /// Import a key from external, portable format.
-/// Supports "raw" format for AES keys.
+/// Supports "raw" and "spki" formats for ECDSA, and "raw" for symmetric keys.
 pub fn importKey(
     _: *const SubtleCrypto,
     format: []const u8,
     key_data: js.TypedArray(u8),
-    _: ?js.Value, // algo
+    algo: ?algorithm.Import,
     extractable: bool,
     _: ?js.Value, // key_usages
     page: *Page,
 ) !js.Promise {
-    if (!std.mem.eql(u8, format, "raw")) {
+    // Check if the algorithm is ECDSA
+    if (algo) |a| {
+        if (a.isECDSA()) {
+            if (std.mem.eql(u8, format, "raw")) {
+                const curve = a.getNamedCurve() orelse "P-256";
+                return ECDSA.importRawPublicKey(key_data.values, curve, extractable, page);
+            }
+
+            if (std.mem.eql(u8, format, "spki")) {
+                return ECDSA.importSpkiPublicKey(key_data.values, extractable, page);
+            }
+
+            log.warn(.not_implemented, "SubtleCrypto.importKey ECDSA", .{ .format = format });
+            return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+        }
+    }
+
+    if (!std.mem.eql(u8, format, "raw") and !std.mem.eql(u8, format, "spki")) {
         log.warn(.not_implemented, "SubtleCrypto.importKey", .{ .format = format });
         return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
     }
@@ -207,46 +232,187 @@ pub fn importKey(
     // Copy key bytes to arena so they persist
     const key_copy = try page.arena.dupe(u8, key_data.values);
 
-    // Create a CryptoKey with the raw bytes
+    // Determine key type from algorithm
+    var key_type: CryptoKey.Type = .raw;
+    var vary: @TypeOf(@as(CryptoKey, undefined)._vary) = undefined;
+
+    if (algo) |a| {
+        const name = a.getName();
+        if (std.mem.eql(u8, name, "HMAC")) {
+            key_type = .hmac;
+            // Get the hash algorithm for HMAC
+            const hash_name = switch (a) {
+                .hmac_import => |h| switch (h.hash) {
+                    .string => |s| s,
+                    .object => |o| o.name,
+                },
+                else => "SHA-256",
+            };
+            vary = .{ .digest = crypto.findDigest(hash_name) catch crypto.EVP_sha256() };
+        }
+    }
+
     const key = try page._factory.create(CryptoKey{
-        ._type = .raw,
+        ._type = key_type,
         ._extractable = extractable,
         ._usages = 0xff, // allow all usages
         ._key = key_copy,
-        ._vary = undefined,
+        ._vary = vary,
     });
 
     return page.js.local.?.resolvePromise(key);
 }
 
-/// Encrypt data using AES-GCM or AES-CBC.
+/// AES-GCM parameters parsed from JS algorithm object.
+const AesGcmParams = struct {
+    iv: []const u8,
+    tag_length: u8, // in bytes (16 = 128 bits default)
+    ad: ?[]const u8, // additional data
+};
+
+/// Extract AES-GCM parameters from a JS algorithm value.
+fn parseAesGcmAlgo(algo_val: js.Value) ?AesGcmParams {
+    if (!algo_val.isObject()) return null;
+    const obj = algo_val.toObject();
+
+    // Check name
+    const name_val = obj.get("name") catch return null;
+    const name_str = name_val.toStringSlice() catch return null;
+    if (!std.mem.eql(u8, name_str, "AES-GCM")) return null;
+
+    // Get IV (required)
+    const iv_val = obj.get("iv") catch return null;
+    if (iv_val.isNullOrUndefined()) return null;
+    const iv = extractBytes(iv_val) orelse return null;
+
+    // Get tagLength (optional, default 128 bits)
+    var tag_length: u8 = 16; // 128 bits
+    const tl_val = obj.get("tagLength") catch null;
+    if (tl_val) |tlv| {
+        if (!tlv.isNullOrUndefined()) {
+            const bits = tlv.toF64() catch 128.0;
+            tag_length = @intCast(@as(u64, @intFromFloat(bits)) / 8);
+        }
+    }
+
+    // Get additionalData (optional)
+    var ad: ?[]const u8 = null;
+    const ad_val = obj.get("additionalData") catch null;
+    if (ad_val) |adv| {
+        if (!adv.isNullOrUndefined()) {
+            ad = extractBytes(adv);
+        }
+    }
+
+    return AesGcmParams{ .iv = iv, .tag_length = tag_length, .ad = ad };
+}
+
+/// Extract raw bytes from a JS ArrayBuffer, TypedArray, or DataView.
+fn extractBytes(val: js.Value) ?[]const u8 {
+    if (val.isTypedArray() or val.isUint8Array() or val.isArrayBufferView()) {
+        const typed = val.toZig(js.TypedArray(u8)) catch return null;
+        return typed.values;
+    }
+    if (val.isArrayBuffer()) {
+        const ab = val.toZig(js.ArrayBuffer) catch return null;
+        return ab.values;
+    }
+    return null;
+}
+
+/// Encrypt data using AES-GCM.
 pub fn encrypt(
     _: *const SubtleCrypto,
     algo_val: ?js.Value,
-    key_val: ?js.Value,
-    data_val: ?js.Value,
+    key: *CryptoKey,
+    data: js.TypedArray(u8),
     page: *Page,
 ) !js.Promise {
-    _ = algo_val;
+    const local = page.js.local.?;
 
-    // Get key
-    const kv = key_val orelse return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.SyntaxError } });
-    _ = kv;
+    const av = algo_val orelse return local.rejectPromise(.{ .dom_exception = .{ .err = error.SyntaxError } });
+    const params = parseAesGcmAlgo(av) orelse {
+        log.warn(.not_implemented, "SubtleCrypto.encrypt", .{});
+        return local.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+    };
 
-    // Get data
-    const dv = data_val orelse return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.SyntaxError } });
-    _ = dv;
+    const key_bytes = key._key;
+    const plaintext = data.values;
 
-    // For now, return a stub encrypted result
-    // TODO: implement real AES-GCM using std.crypto.aead.aes_gcm
-    log.warn(.not_implemented, "SubtleCrypto.encrypt stub", .{});
-    return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+    // Output = ciphertext + tag
+    const output = try page.call_arena.alloc(u8, plaintext.len + params.tag_length);
+
+    if (key_bytes.len == 16) {
+        // AES-128-GCM
+        const aes = std.crypto.aead.aes_gcm.Aes128Gcm;
+        if (params.iv.len != 12) return local.rejectPromise(.{ .dom_exception = .{ .err = error.OperationError } });
+        var tag: [16]u8 = undefined;
+        aes.encrypt(output[0..plaintext.len], &tag, plaintext, params.ad orelse "", params.iv[0..12].*, key_bytes[0..16].*);
+        @memcpy(output[plaintext.len..][0..params.tag_length], tag[0..params.tag_length]);
+    } else if (key_bytes.len == 32) {
+        // AES-256-GCM
+        const aes = std.crypto.aead.aes_gcm.Aes256Gcm;
+        if (params.iv.len != 12) return local.rejectPromise(.{ .dom_exception = .{ .err = error.OperationError } });
+        var tag: [16]u8 = undefined;
+        aes.encrypt(output[0..plaintext.len], &tag, plaintext, params.ad orelse "", params.iv[0..12].*, key_bytes[0..32].*);
+        @memcpy(output[plaintext.len..][0..params.tag_length], tag[0..params.tag_length]);
+    } else {
+        return local.rejectPromise(.{ .dom_exception = .{ .err = error.OperationError } });
+    }
+
+    return local.resolvePromise(js.ArrayBuffer{ .values = output });
 }
 
-/// Decrypt data.
-pub fn decrypt(_: *const SubtleCrypto, _: ?js.Value, _: ?js.Value, _: ?js.Value, page: *Page) !js.Promise {
-    log.warn(.not_implemented, "SubtleCrypto.decrypt", .{});
-    return page.js.local.?.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+/// Decrypt data using AES-GCM.
+pub fn decrypt(
+    _: *const SubtleCrypto,
+    algo_val: ?js.Value,
+    key: *CryptoKey,
+    data: js.TypedArray(u8),
+    page: *Page,
+) !js.Promise {
+    const local = page.js.local.?;
+
+    const av = algo_val orelse return local.rejectPromise(.{ .dom_exception = .{ .err = error.SyntaxError } });
+    const params = parseAesGcmAlgo(av) orelse {
+        log.warn(.not_implemented, "SubtleCrypto.decrypt", .{});
+        return local.rejectPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+    };
+
+    const key_bytes = key._key;
+    const ciphertext_with_tag = data.values;
+
+    if (ciphertext_with_tag.len < params.tag_length) {
+        return local.rejectPromise(.{ .dom_exception = .{ .err = error.OperationError } });
+    }
+
+    const ciphertext_len = ciphertext_with_tag.len - params.tag_length;
+    const ciphertext = ciphertext_with_tag[0..ciphertext_len];
+    const tag_slice = ciphertext_with_tag[ciphertext_len..];
+
+    const output = try page.call_arena.alloc(u8, ciphertext_len);
+
+    if (key_bytes.len == 16) {
+        const aes = std.crypto.aead.aes_gcm.Aes128Gcm;
+        if (params.iv.len != 12) return local.rejectPromise(.{ .dom_exception = .{ .err = error.OperationError } });
+        var tag: [16]u8 = undefined;
+        @memcpy(tag[0..params.tag_length], tag_slice[0..params.tag_length]);
+        aes.decrypt(output, ciphertext, tag, params.ad orelse "", params.iv[0..12].*, key_bytes[0..16].*) catch {
+            return local.rejectPromise(.{ .dom_exception = .{ .err = error.OperationError } });
+        };
+    } else if (key_bytes.len == 32) {
+        const aes = std.crypto.aead.aes_gcm.Aes256Gcm;
+        if (params.iv.len != 12) return local.rejectPromise(.{ .dom_exception = .{ .err = error.OperationError } });
+        var tag: [16]u8 = undefined;
+        @memcpy(tag[0..params.tag_length], tag_slice[0..params.tag_length]);
+        aes.decrypt(output, ciphertext, tag, params.ad orelse "", params.iv[0..12].*, key_bytes[0..32].*) catch {
+            return local.rejectPromise(.{ .dom_exception = .{ .err = error.OperationError } });
+        };
+    } else {
+        return local.rejectPromise(.{ .dom_exception = .{ .err = error.OperationError } });
+    }
+
+    return local.resolvePromise(js.ArrayBuffer{ .values = output });
 }
 
 /// Derive a key from a master key.
