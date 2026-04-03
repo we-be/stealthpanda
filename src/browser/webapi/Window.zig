@@ -511,7 +511,38 @@ pub fn atob(_: *const Window, input: []const u8, page: *Page) ![]const u8 {
     const decoded_len = std.base64.standard_no_pad.Decoder.calcSizeForSlice(unpadded) catch return error.InvalidCharacterError;
     const decoded = try page.call_arena.alloc(u8, decoded_len);
     std.base64.standard_no_pad.Decoder.decode(decoded, unpadded) catch return error.InvalidCharacterError;
-    return decoded;
+
+    // atob returns a "binary string" where each character's code point equals
+    // the byte value (0-255). Since V8 bridge creates strings via NewFromUtf8,
+    // we must encode bytes 128-255 as their UTF-8 two-byte equivalents
+    // (Latin-1 to UTF-8 conversion). Otherwise bytes >= 128 get replaced
+    // with U+FFFD (replacement character).
+    var high_byte_count: usize = 0;
+    for (decoded) |b| {
+        if (b >= 128) high_byte_count += 1;
+    }
+
+    if (high_byte_count == 0) {
+        // All bytes are ASCII — no conversion needed
+        return decoded;
+    }
+
+    // Need to expand: each byte >= 128 becomes 2 UTF-8 bytes
+    const utf8_len = decoded_len + high_byte_count;
+    const utf8 = try page.call_arena.alloc(u8, utf8_len);
+    var j: usize = 0;
+    for (decoded) |b| {
+        if (b < 128) {
+            utf8[j] = b;
+            j += 1;
+        } else {
+            // Latin-1 byte 0x80-0xFF maps to UTF-8: 0xC2/0xC3 + continuation
+            utf8[j] = 0xC0 | (b >> 6);
+            utf8[j + 1] = 0x80 | (b & 0x3F);
+            j += 2;
+        }
+    }
+    return utf8[0..j];
 }
 
 pub fn structuredClone(_: *const Window, value: js.Value) !js.Value {
