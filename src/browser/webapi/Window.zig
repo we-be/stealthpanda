@@ -489,9 +489,64 @@ pub fn postMessage(self: *Window, message: js.Value.Temp, target_origin: ?[]cons
 }
 
 pub fn btoa(_: *const Window, input: []const u8, page: *Page) ![]const u8 {
-    const encoded_len = std.base64.standard.Encoder.calcSize(input.len);
+    // btoa encodes a "binary string" where each character's code point (0-255)
+    // becomes a single byte. The input from V8 is UTF-8 encoded, so we need
+    // to decode UTF-8 back to Latin-1 bytes before base64-encoding.
+    // Characters with code points > 255 should throw InvalidCharacterError.
+
+    // Check if input has any high bytes (UTF-8 multi-byte sequences)
+    var has_multibyte = false;
+    for (input) |b| {
+        if (b >= 0x80) {
+            has_multibyte = true;
+            break;
+        }
+    }
+
+    if (!has_multibyte) {
+        // All ASCII — encode directly
+        const encoded_len = std.base64.standard.Encoder.calcSize(input.len);
+        const encoded = try page.call_arena.alloc(u8, encoded_len);
+        return std.base64.standard.Encoder.encode(encoded, input);
+    }
+
+    // Decode UTF-8 to Latin-1 bytes
+    var latin1_len: usize = 0;
+    var i: usize = 0;
+    while (i < input.len) {
+        if (input[i] < 0x80) {
+            latin1_len += 1;
+            i += 1;
+        } else if (i + 1 < input.len and input[i] & 0xE0 == 0xC0) {
+            // 2-byte UTF-8: 110xxxxx 10xxxxxx → code point 0x80-0x7FF
+            const cp = (@as(u16, input[i] & 0x1F) << 6) | @as(u16, input[i + 1] & 0x3F);
+            if (cp > 255) return error.InvalidCharacterError;
+            latin1_len += 1;
+            i += 2;
+        } else {
+            // 3+ byte UTF-8: code point > 0xFF → error
+            return error.InvalidCharacterError;
+        }
+    }
+
+    const latin1 = try page.call_arena.alloc(u8, latin1_len);
+    var j: usize = 0;
+    i = 0;
+    while (i < input.len) {
+        if (input[i] < 0x80) {
+            latin1[j] = input[i];
+            j += 1;
+            i += 1;
+        } else {
+            latin1[j] = @intCast((@as(u16, input[i] & 0x1F) << 6) | @as(u16, input[i + 1] & 0x3F));
+            j += 1;
+            i += 2;
+        }
+    }
+
+    const encoded_len = std.base64.standard.Encoder.calcSize(latin1_len);
     const encoded = try page.call_arena.alloc(u8, encoded_len);
-    return std.base64.standard.Encoder.encode(encoded, input);
+    return std.base64.standard.Encoder.encode(encoded, latin1);
 }
 
 pub fn atob(_: *const Window, input: []const u8, page: *Page) ![]const u8 {
