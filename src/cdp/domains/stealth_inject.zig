@@ -144,17 +144,29 @@ pub const script: [:0]const u8 =
     \\          msg.wPr.pi.wp = top.toFixed(1) + '|' + right.toFixed(1);
     \\        }
     \\        if (!msg.apiJsResourceTiming && msg.au) {
-    \\          var st = Math.random() * 100 + 30;
-    \\          var dur = Math.random() * 80 + 30;
+    \\          // Cross-origin resource timing: Chrome returns zeros for timing/size
+    \\          // fields because challenges.cloudflare.com doesn't send
+    \\          // Timing-Allow-Origin. Must match Chrome's exact format.
+    \\          var st = performance.now() - Math.random() * 50 - 80;
+    \\          if (st < 50) st = 50 + Math.random() * 100;
+    \\          var dur = Math.random() * 40 + 60;
     \\          msg.apiJsResourceTiming = {
     \\            name: msg.au, entryType: 'resource', startTime: st,
-    \\            duration: dur, initiatorType: 'script', nextHopProtocol: 'h2',
-    \\            workerStart: 0, redirectStart: 0, redirectEnd: 0,
-    \\            fetchStart: st, domainLookupStart: st+1, domainLookupEnd: st+3,
-    \\            connectStart: st+3, connectEnd: st+15, secureConnectionStart: st+5,
-    \\            requestStart: st+15, responseStart: st+dur*0.3, responseEnd: st+dur,
-    \\            transferSize: 52567, encodedBodySize: 36800, decodedBodySize: 52567,
-    \\            serverTiming: []
+    \\            duration: dur, initiatorType: 'script',
+    \\            deliveryType: '', nextHopProtocol: '',
+    \\            renderBlockingStatus: 'non-blocking', contentEncoding: '',
+    \\            workerStart: 0, workerRouterEvaluationStart: 0,
+    \\            workerCacheLookupStart: 0, workerMatchedSourceType: '',
+    \\            workerFinalSourceType: '',
+    \\            redirectStart: 0, redirectEnd: 0,
+    \\            fetchStart: st,
+    \\            domainLookupStart: 0, domainLookupEnd: 0,
+    \\            connectStart: 0, connectEnd: 0, secureConnectionStart: 0,
+    \\            requestStart: 0, responseStart: 0,
+    \\            firstInterimResponseStart: 0, finalResponseHeadersStart: 0,
+    \\            responseEnd: st + dur,
+    \\            transferSize: 0, encodedBodySize: 0, decodedBodySize: 0,
+    \\            responseStatus: 0, serverTiming: []
     \\          };
     \\          console.warn('AJRT_INJECTED');
     \\        }
@@ -393,28 +405,60 @@ pub const script: [:0]const u8 =
     \\  function makeResEntry(url, startOff, dur, size, initiator) {
     \\    var st = performance.now() - startOff;
     \\    if (st < 0) st = Math.random() * 50 + 10;
-    \\    var dns = st + Math.random() * 2;
-    \\    var conn = dns + Math.random() * 5;
-    \\    var ssl = conn + Math.random() * 10;
-    \\    var reqSt = ssl + Math.random() * 2;
-    \\    var rspSt = reqSt + dur * 0.3;
-    \\    var rspEnd = reqSt + dur;
-    \\    var entry = {
-    \\      name: url, entryType: 'resource', startTime: st,
-    \\      duration: dur, initiatorType: initiator || 'script',
-    \\      nextHopProtocol: 'h2',
-    \\      workerStart: 0, redirectStart: 0, redirectEnd: 0,
-    \\      fetchStart: st, domainLookupStart: dns, domainLookupEnd: dns + 1,
-    \\      connectStart: conn, connectEnd: ssl, secureConnectionStart: conn + 1,
-    \\      requestStart: reqSt, responseStart: rspSt, responseEnd: rspEnd,
-    \\      transferSize: size || Math.floor(dur * 100 + 5000),
-    \\      encodedBodySize: size ? Math.floor(size * 0.7) : Math.floor(dur * 70 + 3500),
-    \\      decodedBodySize: size || Math.floor(dur * 100 + 5000),
-    \\      serverTiming: [],
-    \\      toJSON: function() {
-    \\        var o = {}; for (var k in this) if (typeof this[k] !== 'function') o[k] = this[k]; return o;
-    \\      }
-    \\    };
+    \\    // Cross-origin scripts: Chrome returns zeros for detailed timing/size
+    \\    // because Timing-Allow-Origin header is not set by CF
+    \\    var isCrossOrigin = false;
+    \\    try {
+    \\      var pageOrigin = location.origin || location.protocol + '//' + location.host;
+    \\      isCrossOrigin = url.indexOf(pageOrigin) < 0 && url.indexOf('://') >= 0;
+    \\    } catch(e) { isCrossOrigin = true; }
+    \\    var rspEnd = st + dur;
+    \\    var entry;
+    \\    if (isCrossOrigin) {
+    \\      entry = {
+    \\        name: url, entryType: 'resource', startTime: st,
+    \\        duration: dur, initiatorType: initiator || 'script',
+    \\        deliveryType: '', nextHopProtocol: '',
+    \\        renderBlockingStatus: 'non-blocking', contentEncoding: '',
+    \\        workerStart: 0, workerRouterEvaluationStart: 0,
+    \\        workerCacheLookupStart: 0, workerMatchedSourceType: '',
+    \\        workerFinalSourceType: '',
+    \\        redirectStart: 0, redirectEnd: 0, fetchStart: st,
+    \\        domainLookupStart: 0, domainLookupEnd: 0,
+    \\        connectStart: 0, connectEnd: 0, secureConnectionStart: 0,
+    \\        requestStart: 0, responseStart: 0,
+    \\        firstInterimResponseStart: 0, finalResponseHeadersStart: 0,
+    \\        responseEnd: rspEnd,
+    \\        transferSize: 0, encodedBodySize: 0, decodedBodySize: 0,
+    \\        responseStatus: 0, serverTiming: [],
+    \\        toJSON: function() { var o = {}; for (var k in this) if (typeof this[k] !== 'function') o[k] = this[k]; return o; }
+    \\      };
+    \\    } else {
+    \\      var dns = st + Math.random() * 2;
+    \\      var conn = dns + Math.random() * 5;
+    \\      var ssl = conn + Math.random() * 10;
+    \\      var reqSt = ssl + Math.random() * 2;
+    \\      entry = {
+    \\        name: url, entryType: 'resource', startTime: st,
+    \\        duration: dur, initiatorType: initiator || 'script',
+    \\        deliveryType: '', nextHopProtocol: 'h2',
+    \\        renderBlockingStatus: 'non-blocking', contentEncoding: '',
+    \\        workerStart: 0, workerRouterEvaluationStart: 0,
+    \\        workerCacheLookupStart: 0, workerMatchedSourceType: '',
+    \\        workerFinalSourceType: '',
+    \\        redirectStart: 0, redirectEnd: 0, fetchStart: st,
+    \\        domainLookupStart: dns, domainLookupEnd: dns + 1,
+    \\        connectStart: conn, connectEnd: ssl, secureConnectionStart: conn + 1,
+    \\        requestStart: reqSt, responseStart: reqSt + dur*0.3,
+    \\        firstInterimResponseStart: 0, finalResponseHeadersStart: 0,
+    \\        responseEnd: rspEnd,
+    \\        transferSize: size || Math.floor(dur * 100 + 5000),
+    \\        encodedBodySize: size ? Math.floor(size * 0.7) : Math.floor(dur * 70 + 3500),
+    \\        decodedBodySize: size || Math.floor(dur * 100 + 5000),
+    \\        responseStatus: 200, serverTiming: [],
+    \\        toJSON: function() { var o = {}; for (var k in this) if (typeof this[k] !== 'function') o[k] = this[k]; return o; }
+    \\      };
+    \\    }
     \\    return entry;
     \\  }
     \\  // Observe script insertions to generate resource entries
@@ -580,19 +624,26 @@ pub const script: [:0]const u8 =
     \\          for (var i = 0; i < scripts.length; i++) {
     \\            var src = scripts[i].src || '';
     \\            if (src.length > 0) {
-    \\              var st = Math.random() * 200 + 30;
-    \\              var dur = Math.random() * 100 + 30;
+    \\              var st = performance.now() - Math.random() * 100 - 30;
+    \\              if (st < 30) st = 30 + Math.random() * 80;
+    \\              var dur = Math.random() * 60 + 40;
+    \\              // Cross-origin format: zeros for timing/size (no Timing-Allow-Origin)
     \\              entries.push({
     \\                name: src, entryType: 'resource', startTime: st,
-    \\                duration: dur, initiatorType: 'script', nextHopProtocol: 'h2',
-    \\                workerStart: 0, redirectStart: 0, redirectEnd: 0,
-    \\                fetchStart: st, domainLookupStart: st+1, domainLookupEnd: st+3,
-    \\                connectStart: st+3, connectEnd: st+15, secureConnectionStart: st+5,
-    \\                requestStart: st+15, responseStart: st+dur*0.3, responseEnd: st+dur,
-    \\                transferSize: Math.floor(dur*200+5000),
-    \\                encodedBodySize: Math.floor(dur*140+3500),
-    \\                decodedBodySize: Math.floor(dur*200+5000),
-    \\                serverTiming: [],
+    \\                duration: dur, initiatorType: 'script',
+    \\                deliveryType: '', nextHopProtocol: '',
+    \\                renderBlockingStatus: 'non-blocking', contentEncoding: '',
+    \\                workerStart: 0, workerRouterEvaluationStart: 0,
+    \\                workerCacheLookupStart: 0, workerMatchedSourceType: '',
+    \\                workerFinalSourceType: '',
+    \\                redirectStart: 0, redirectEnd: 0, fetchStart: st,
+    \\                domainLookupStart: 0, domainLookupEnd: 0,
+    \\                connectStart: 0, connectEnd: 0, secureConnectionStart: 0,
+    \\                requestStart: 0, responseStart: 0,
+    \\                firstInterimResponseStart: 0, finalResponseHeadersStart: 0,
+    \\                responseEnd: st + dur,
+    \\                transferSize: 0, encodedBodySize: 0, decodedBodySize: 0,
+    \\                responseStatus: 0, serverTiming: [],
     \\                toJSON: function() { var o={}; for(var k in this) if(typeof this[k]!=='function') o[k]=this[k]; return o; }
     \\              });
     \\            }
