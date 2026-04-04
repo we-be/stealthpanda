@@ -158,6 +158,14 @@ pub const script: [:0]const u8 =
     \\        if (e.data.ch) console.warn('EXTRA_CH: len=' + String(e.data.ch).length);
     \\        if (e.data.scs) console.warn('EXTRA_SCS: ' + JSON.stringify(e.data.scs).substring(0,120));
     \\        if (e.data.au) console.warn('EXTRA_AU: ' + JSON.stringify(e.data.au).substring(0,120));
+    \\        if (e.data.wPr) {
+    \\          try { console.warn('EXTRA_WPR: ' + JSON.stringify(e.data.wPr)); } catch(ex) {}
+    \\        }
+    \\        if (e.data.apiJsResourceTiming) {
+    \\          try { console.warn('EXTRA_AJRT: ' + JSON.stringify(e.data.apiJsResourceTiming).substring(0,300)); } catch(ex) {}
+    \\        } else {
+    \\          console.warn('EXTRA_AJRT: undefined');
+    \\        }
     \\        console.warn('EXTRA_TIMES: init=' + e.data.timeInitMs + ' params=' + e.data.timeParamsMs + ' render=' + e.data.timeRenderMs + ' extra=' + e.data.timeExtraParamsMs);
     \\      } catch(ex) { console.warn('EXTRA_ERR: ' + ex.message); }
     \\    }
@@ -192,6 +200,19 @@ pub const script: [:0]const u8 =
     \\  });
     \\  // Track property access failures via Proxy (for window and document)
     \\  // This catches the VM probing for APIs that don't exist
+    \\  // Track canvas toDataURL calls to see CF's canvas fingerprint
+    \\  try {
+    \\    var _origToDataURL = HTMLCanvasElement.prototype.toDataURL;
+    \\    var _canvasCalls = 0;
+    \\    HTMLCanvasElement.prototype.toDataURL = function() {
+    \\      var result = _origToDataURL.apply(this, arguments);
+    \\      _canvasCalls++;
+    \\      if (_canvasCalls <= 3) {
+    \\        console.warn('CANVAS_FP: call=' + _canvasCalls + ' w=' + this.width + ' h=' + this.height + ' len=' + result.length + ' hash=' + result.substring(22,50));
+    \\      }
+    \\      return result;
+    \\    };
+    \\  } catch(e) {}
     \\  // Track WebGL getParameter calls to see what CF checks
     \\  try {
     \\    var _origGlGetParam = WebGLRenderingContext.prototype.getParameter;
@@ -323,6 +344,20 @@ pub const script: [:0]const u8 =
     \\  var _origGetEntries = performance.getEntries.bind(performance);
     \\  var _origGetByType = performance.getEntriesByType.bind(performance);
     \\  var _origGetByName = performance.getEntriesByName.bind(performance);
+    \\  // PerformanceResourceTiming constructor — needed for instanceof checks
+    \\  // CF's api.js does: if (U(entry, PerformanceResourceTiming))
+    \\  if (typeof PerformanceResourceTiming === 'undefined') {
+    \\    window.PerformanceResourceTiming = function() { throw new TypeError('Illegal constructor'); };
+    \\    PerformanceResourceTiming.prototype = Object.create(PerformanceEntry ? PerformanceEntry.prototype : Object.prototype);
+    \\    PerformanceResourceTiming.prototype.constructor = PerformanceResourceTiming;
+    \\    Object.defineProperty(PerformanceResourceTiming.prototype, Symbol.toStringTag, {value: 'PerformanceResourceTiming', configurable: true});
+    \\  }
+    \\  var _PRT = PerformanceResourceTiming;
+    \\  // Debug: verify instanceof works
+    \\  try {
+    \\    var _testEntry = Object.create(_PRT.prototype);
+    \\    console.warn('PRT_TEST: instanceof=' + (_testEntry instanceof _PRT) + ' hasInstance=' + !!_PRT[Symbol.hasInstance]);
+    \\  } catch(e) { console.warn('PRT_TEST_ERR: ' + e.message); }
     \\  function makeResEntry(url, startOff, dur, size, initiator) {
     \\    var st = performance.now() - startOff;
     \\    if (st < 0) st = Math.random() * 50 + 10;
@@ -332,7 +367,8 @@ pub const script: [:0]const u8 =
     \\    var reqSt = ssl + Math.random() * 2;
     \\    var rspSt = reqSt + dur * 0.3;
     \\    var rspEnd = reqSt + dur;
-    \\    return {
+    \\    var entry = _PRT ? Object.create(_PRT.prototype) : {};
+    \\    Object.assign(entry, {
     \\      name: url, entryType: 'resource', startTime: st,
     \\      duration: dur, initiatorType: initiator || 'script',
     \\      nextHopProtocol: 'h2',
@@ -347,7 +383,8 @@ pub const script: [:0]const u8 =
     \\      toJSON: function() {
     \\        var o = {}; for (var k in this) if (typeof this[k] !== 'function') o[k] = this[k]; return o;
     \\      }
-    \\    };
+    \\    });
+    \\    return entry;
     \\  }
     \\  // Observe script insertions to generate resource entries
     \\  var _origAppend = Element.prototype.appendChild;
@@ -414,7 +451,30 @@ pub const script: [:0]const u8 =
     \\    var real = _origGetByType(type);
     \\    if (type === 'resource') {
     \\      _scanExistingResources();
-    \\      return (real || []).concat(_resEntries);
+    \\      var all = (real || []).concat(_resEntries);
+    \\      // Ensure Turnstile api.js has a resource timing entry
+    \\      // CF checks apiJsResourceTiming — undefined = bot signal
+    \\      // The api.js filters entries by its own URL (y.scriptUrl)
+    \\      var hasCF = false;
+    \\      for (var ri = 0; ri < all.length; ri++) {
+    \\        if (all[ri].name && (all[ri].name.indexOf('challenges.cloudflare.com') >= 0 || all[ri].name.indexOf('turnstile') >= 0)) {
+    \\          hasCF = true; break;
+    \\        }
+    \\      }
+    \\      if (!hasCF) {
+    \\        // Look for the script in DOM
+    \\        try {
+    \\          var allScripts = document.getElementsByTagName('script');
+    \\          for (var si = 0; si < allScripts.length; si++) {
+    \\            var scriptSrc = allScripts[si].src || '';
+    \\            if (scriptSrc.indexOf('challenges.cloudflare.com') >= 0 || scriptSrc.indexOf('turnstile') >= 0) {
+    \\              all.push(makeResEntry(scriptSrc, 80 + Math.random()*120, 50 + Math.random()*80, 52567, 'script'));
+    \\              hasCF = true;
+    \\            }
+    \\          }
+    \\        } catch(e) {}
+    \\      }
+    \\      return all;
     \\    }
     \\    if (type === 'navigation') {
     \\      if (real && real.length > 0) return real;
@@ -462,6 +522,58 @@ pub const script: [:0]const u8 =
     \\    get: function() { return ['element','event','first-input','largest-contentful-paint','layout-shift','long-animation-frame','longtask','mark','measure','navigation','paint','resource','visibility-state']; },
     \\    configurable: true
     \\  });
+    \\  // Patch PerformanceObserver to support 'resource' type
+    \\  // CF's api.js uses PerformanceObserver to find its own resource timing.
+    \\  // Without this, apiJsResourceTiming=undefined (bot signal).
+    \\  var _OrigPO = PerformanceObserver;
+    \\  window.PerformanceObserver = function(callback) {
+    \\    this._spCallback = callback;
+    \\    try { _OrigPO.call(this, callback); } catch(e) {
+    \\      this._spFallback = true;
+    \\    }
+    \\  };
+    \\  window.PerformanceObserver.prototype = _OrigPO.prototype;
+    \\  Object.defineProperty(window.PerformanceObserver, 'supportedEntryTypes', {
+    \\    get: function() { return ['element','event','first-input','largest-contentful-paint','layout-shift','long-animation-frame','longtask','mark','measure','navigation','paint','resource','visibility-state']; },
+    \\    configurable: true
+    \\  });
+    \\  var _origPOObserve = _OrigPO.prototype.observe;
+    \\  _OrigPO.prototype.observe = function(options) {
+    \\    var self = this;
+    \\    try { _origPOObserve.call(this, options); } catch(e) {}
+    \\    if (options && (options.type === 'resource' || (options.entryTypes && options.entryTypes.indexOf('resource') >= 0))) {
+    \\      setTimeout(function() {
+    \\        try {
+    \\          var scripts = document.getElementsByTagName('script');
+    \\          var entries = [];
+    \\          for (var i = 0; i < scripts.length; i++) {
+    \\            var src = scripts[i].src || '';
+    \\            if (src.length > 0) {
+    \\              var st = Math.random() * 200 + 30;
+    \\              var dur = Math.random() * 100 + 30;
+    \\              entries.push({
+    \\                name: src, entryType: 'resource', startTime: st,
+    \\                duration: dur, initiatorType: 'script', nextHopProtocol: 'h2',
+    \\                workerStart: 0, redirectStart: 0, redirectEnd: 0,
+    \\                fetchStart: st, domainLookupStart: st+1, domainLookupEnd: st+3,
+    \\                connectStart: st+3, connectEnd: st+15, secureConnectionStart: st+5,
+    \\                requestStart: st+15, responseStart: st+dur*0.3, responseEnd: st+dur,
+    \\                transferSize: Math.floor(dur*200+5000),
+    \\                encodedBodySize: Math.floor(dur*140+3500),
+    \\                decodedBodySize: Math.floor(dur*200+5000),
+    \\                serverTiming: [],
+    \\                toJSON: function() { var o={}; for(var k in this) if(typeof this[k]!=='function') o[k]=this[k]; return o; }
+    \\              });
+    \\            }
+    \\          }
+    \\          if (entries.length > 0 && self._spCallback) {
+    \\            var entryList = { getEntries: function() { return entries; }, getEntriesByType: function(t) { return entries.filter(function(e){return e.entryType===t}); }, getEntriesByName: function(n) { return entries.filter(function(e){return e.name===n}); } };
+    \\            self._spCallback(entryList, self);
+    \\          }
+    \\        } catch(e) {}
+    \\      }, 1);
+    \\    }
+    \\  };
     \\}
     \\
     // Lock navigator.webdriver to false (Chrome returns false when not under automation)
