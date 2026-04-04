@@ -641,6 +641,7 @@ pub const script: [:0]const u8 =
     \\          removeEventListener: function() {}, close: function() {},
     \\          importScripts: function() {},
     \\          crypto: window.crypto, performance: window.performance,
+    \\          setTimeout: setTimeout,
     \\          Math: Math, Uint8Array: Uint8Array, Uint32Array: Uint32Array,
     \\          Int32Array: Int32Array, Float64Array: Float64Array,
     \\          ArrayBuffer: ArrayBuffer, DataView: DataView,
@@ -679,6 +680,10 @@ pub const script: [:0]const u8 =
     \\          // Deliver main→worker message synchronously
     \\          var handler = _msgHandler || scope.onmessage;
     \\          if (handler) {
+    \\            // Log the eval'd code for POW analysis
+    \\            if (typeof data === 'string' && data.length > 50) {
+    \\              console.warn('IF_WK_EVAL: len=' + data.length + ' code=' + data.substring(0,120));
+    \\            }
     \\            var mev = {data: data, isTrusted: true, origin: '', source: null, type: 'message',
     \\                     ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
     \\                     stopImmediatePropagation: function(){}};
