@@ -1119,7 +1119,12 @@ pub const script: [:0]const u8 =
     \\  window.Blob.prototype = _origBlob.prototype;
     \\  Object.defineProperty(window.Blob, 'name', {value: 'Blob'});
     \\  var _origWorker = window.Worker;
+    \\  var _workerCount = 0;
     \\  window.Worker = function(url) {
+    \\    _workerCount++;
+    \\    var _wid = _workerCount;
+    \\    var cached = _blobCache[url];
+    \\    console.warn('WK_NEW: #' + _wid + ' url=' + (url||'').substring(0,50) + ' cached=' + (cached ? cached.length : 'NO') + ' code=' + (cached || '').substring(0,100));
     \\    var _code = null, _msgHandler = null;
     \\    var worker = {
     \\      onmessage: null, onerror: null,
