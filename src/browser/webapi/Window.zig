@@ -1030,6 +1030,12 @@ pub const JsApi = struct {
     pub const length = bridge.accessor(Window.getFramesLength, null, .{});
     pub const scrollX = bridge.accessor(Window.getScrollX, null, .{});
     pub const scrollY = bridge.accessor(Window.getScrollY, null, .{});
+    pub const screenX = bridge.property(@as(i32, 0), .{ .template = false });
+    pub const screenY = bridge.property(@as(i32, 0), .{ .template = false });
+    pub const screenLeft = bridge.property(@as(i32, 0), .{ .template = false });
+    pub const screenTop = bridge.property(@as(i32, 0), .{ .template = false });
+    pub const devicePixelRatio = bridge.property(@as(f64, 1.0), .{ .template = false });
+    pub const isSecureContext = bridge.property(true, .{ .template = false });
     pub const pageXOffset = bridge.accessor(Window.getScrollX, null, .{});
     pub const pageYOffset = bridge.accessor(Window.getScrollY, null, .{});
     pub const scrollTo = bridge.function(Window.scrollTo, .{});
