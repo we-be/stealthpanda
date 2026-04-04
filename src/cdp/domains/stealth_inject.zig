@@ -187,27 +187,29 @@ pub const script: [:0]const u8 =
     \\      var elapsed = Date.now() - _flowStartTime;
     \\      var urlEnd = (this._stUrl || '').split('/').slice(-2).join('/');
     \\      var bodyStr = (typeof body === 'string') ? body : '';
-    \\      // Log request details
-    \\      var hiCount = 0, maxChar = 0;
-    \\      for (var ci = 0; ci < bodyStr.length; ci++) {
-    \\        var cc = bodyStr.charCodeAt(ci);
-    \\        if (cc > 127) hiCount++;
-    \\        if (cc > maxChar) maxChar = cc;
-    \\      }
-    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + bodyStr.length + ' hi=' + hiCount + ' max=' + maxChar);
+    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + (body ? body.length : 0));
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
     \\        var elapsed2 = Date.now() - _flowStartTime;
     \\        var rspBody = rsp.length <= 50 ? rsp : rsp.substring(0,50);
-    \\        var allHdrs = (xhr.getAllResponseHeaders() || '').replace(/\r?\n/g, ' | ');
-    \\        if (flowNum <= 1) {
-    \\          var chlGen = xhr.getResponseHeader('cf-chl-gen');
-    \\          console.warn('CHL_GEN: len=' + (chlGen ? chlGen.length : 'null'));
+    \\        // Simple hash of response for verification
+    \\        var rspHash = 0;
+    \\        for (var hi = 0; hi < rsp.length; hi++) {
+    \\          rspHash = ((rspHash << 5) - rspHash + rsp.charCodeAt(hi)) | 0;
     \\        }
-    \\        if (xhr.status >= 400) { console.warn('FAIL_HDRS: ' + allHdrs); }
-    \\        allHdrs = allHdrs.substring(0, 200);
-    \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length + ' body=' + rspBody + ' hdrs=' + allHdrs);
+    \\        // Check for high bytes in response (Latin-1 encoding)
+    \\        var rspHi = 0, rspMax = 0;
+    \\        for (var ri = 0; ri < Math.min(rsp.length, 10000); ri++) {
+    \\          var rc = rsp.charCodeAt(ri);
+    \\          if (rc > 127) rspHi++;
+    \\          if (rc > rspMax) rspMax = rc;
+    \\        }
+    \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length + ' hi=' + rspHi + ' max=' + rspMax + ' hash=' + rspHash);
+    \\        if (xhr.status >= 400) {
+    \\          var allHdrs = (xhr.getAllResponseHeaders() || '').replace(/\r?\n/g, ' | ');
+    \\          console.warn('FAIL_HDRS: ' + allHdrs);
+    \\        }
     \\      });
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
