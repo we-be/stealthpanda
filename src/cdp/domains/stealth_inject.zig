@@ -5,21 +5,9 @@
 pub const script: [:0]const u8 =
     \\try { // begin main stealth block
     \\
-    \\(function() {
-    \\  var _stub = function _s() { return _stub; };
-    \\  _stub.bind = function() { return _stub; };
-    \\  _stub.call = function() { return _stub; };
-    \\  _stub.apply = function() { return _stub; };
-    \\  Object.defineProperty(Number.prototype, 'bind', {value: function() { return _stub; }, writable: true, configurable: true, enumerable: false});
-    \\  Object.defineProperty(Number.prototype, 'call', {value: function() { return _stub; }, writable: true, configurable: true, enumerable: false});
-    \\  Object.defineProperty(Number.prototype, 'apply', {value: function() { return _stub; }, writable: true, configurable: true, enumerable: false});
-    \\  var _noopArr = function() { return undefined; };
-    \\  ['pop','shift','splice','push','unshift','indexOf'].forEach(function(m) {
-    \\    if (typeof Number.prototype[m] === 'undefined') {
-    \\      Object.defineProperty(Number.prototype, m, {value: _noopArr, writable: true, configurable: true, enumerable: false});
-    \\    }
-    \\  });
-    \\})();
+    \\// Number.prototype patches DISABLED — may cause wrong VM computation
+    \\// These were added to prevent crashes in CF's XOR-indexed handler table
+    \\// but they change the VM's code path, potentially producing wrong results
     \\
     \\
     \\
@@ -345,21 +333,9 @@ pub const script: [:0]const u8 =
     \\  };
     \\}
     \\
-    // Ensure toString() on native functions looks native
-    \\const nativeToString = Function.prototype.toString;
-    \\const fakeNatives = new Map();
-    \\function makeNative(fn, name) {
-    \\  fakeNatives.set(fn, 'function ' + name + '() { [native code] }');
-    \\}
-    \\Function.prototype.toString = function() {
-    \\  if (fakeNatives.has(this)) return fakeNatives.get(this);
-    \\  var result = nativeToString.call(this);
-    \\  if (typeof result !== 'string') {
-    \\    return 'function ' + (this.name || '') + '() { [native code] }';
-    \\  }
-    \\  return result;
-    \\};
-    \\makeNative(Function.prototype.toString, 'toString');
+    // makeNative — just a no-op now, Function.prototype.toString not patched
+    // Patching toString was suspicious — CF may detect non-standard toString behavior
+    \\function makeNative() {}
     \\try { Object.defineProperty(window, '_makeNative', {value: makeNative, enumerable: false, configurable: true, writable: true}); } catch(e) {}
     \\try { Object.defineProperty(window, 'makeNative', {value: makeNative, enumerable: false, configurable: true, writable: true}); } catch(e) {}
     \\
