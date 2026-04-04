@@ -843,4 +843,37 @@ pub const script: [:0]const u8 =
     \\})();
     \\
     \\} catch(e) { console.warn('[SP-CRASH]', e.message, e.stack ? e.stack.split('\n')[1] : ''); } // end main stealth block
+    \\
+    \\// Chrome property stubs for fingerprint detection bypass
+    \\(function(){
+    \\  // Event handlers that Chrome's window has but we don't
+    \\  'onabort,onafterprint,onanimationend,onanimationiteration,onanimationstart,onauxclick,onbeforeinput,onbeforeprint,onbeforeunload,onblur,oncancel,oncanplay,oncanplaythrough,onchange,onclick,onclose,oncontentvisibilityautostatechange,oncontextlost,oncontextmenu,oncontextrestored,oncuechange,ondblclick,ondrag,ondragend,ondragenter,ondragleave,ondragover,ondragstart,ondrop,ondurationchange,onemptied,onended,onfocus,onformdata,ongotpointercapture,onhashchange,oninput,oninvalid,onkeydown,onkeypress,onkeyup,onlanguagechange,onloadeddata,onloadedmetadata,onloadstart,onlostpointercapture,onmessageerror,onmousedown,onmouseenter,onmouseleave,onmousemove,onmouseout,onmouseover,onmouseup,onoffline,ononline,onpagehide,onpaste,onpause,onplay,onplaying,onpointercancel,onpointerdown,onpointerenter,onpointerleave,onpointermove,onpointerout,onpointerover,onpointerup,onprogress,onratechange,onreset,onresize,onscroll,onscrollend,onsearch,onsecuritypolicyviolation,onseeked,onseeking,onselect,onselectionchange,onselectstart,onslotchange,onstalled,onstorage,onsubmit,onsuspend,ontimeupdate,ontoggle,ontouchcancel,ontouchend,ontouchmove,ontouchstart,ontransitioncancel,ontransitionend,ontransitionrun,ontransitionstart,onunload,onvolumechange,onwaiting,onwebkitanimationend,onwebkitanimationiteration,onwebkitanimationstart,onwebkittransitionend,onwheel'.split(',').forEach(function(n){
+    \\    if(!(n in window))try{Object.defineProperty(window,n,{value:null,writable:true,configurable:true,enumerable:true})}catch(e){}
+    \\  });
+    \\  // Chrome global constructors — create Illegal constructor stubs
+    \\  var _mkCtor = function(name){
+    \\    var F = function(){throw new TypeError('Illegal constructor')};
+    \\    Object.defineProperty(F,'name',{value:name,configurable:true});
+    \\    F.prototype = Object.create(null);
+    \\    F.prototype.constructor = F;
+    \\    try{Object.defineProperty(F.prototype,Symbol.toStringTag,{value:name,configurable:true})}catch(e){}
+    \\    return F;
+    \\  };
+    \\  // Only the constructors CF actually probes for (from unknown_prop log)
+    \\  'CSSKeywordValue,CSSPositionTryDescriptors,CSSStyleValue,CSSTransformValue,CSSUnitValue,CSSUnparsedValue,VirtualKeyboardGeometryChangeEvent,MIDIOutputMap,MIDIInputMap,RTCRtpScriptTransform,AudioWorkletNode,AudioContext,OfflineAudioContext,AudioBuffer,AudioBufferSourceNode,GainNode,OscillatorNode,AnalyserNode,BiquadFilterNode,ChannelMergerNode,ChannelSplitterNode,ConvolverNode,DelayNode,DynamicsCompressorNode,WaveShaperNode,PannerNode,StereoPannerNode,AnimationEvent,TransitionEvent,ClipboardEvent,PointerEvent,InputEvent,CompositionEvent,DragEvent,FocusEvent,FormDataEvent,GamepadEvent,KeyboardEvent,MouseEvent,ProgressEvent,SubmitEvent,TouchEvent,WheelEvent,UIEvent,SecurityPolicyViolationEvent,PromiseRejectionEvent,PageTransitionEvent,HashChangeEvent,BeforeUnloadEvent,MediaQueryListEvent,PopStateEvent,StorageEvent,BroadcastChannel,MessageChannel,MessagePort,Notification,RTCPeerConnection,RTCSessionDescription,RTCIceCandidate,RTCDataChannel,MediaStream,MediaStreamTrack,MediaRecorder,ImageBitmap,IntersectionObserver,IntersectionObserverEntry,ResizeObserver,ResizeObserverEntry,MutationRecord,PerformanceObserverEntryList,Clipboard,ClipboardItem,FileReader,FileList,Geolocation,Lock,LockManager,Credential,CredentialsContainer,Gamepad,GamepadButton,GamepadHapticActuator'.split(',').forEach(function(n){
+    \\    if(!(n in window))try{window[n]=_mkCtor(n)}catch(e){}
+    \\  });
+    \\  // Navigator stubs
+    \\  var navStubs = {bluetooth:{},clipboard:{readText:function(){return Promise.resolve('')},writeText:function(){return Promise.resolve()}},connection:{effectiveType:'4g',downlink:10,rtt:50,saveData:false,type:'wifi'},credentials:{get:function(){return Promise.resolve(null)},create:function(){return Promise.resolve(null)},store:function(){return Promise.resolve()}},geolocation:{getCurrentPosition:function(){},watchPosition:function(){return 0},clearWatch:function(){}},locks:{request:function(){return Promise.resolve()},query:function(){return Promise.resolve({held:[],pending:[]})}},mediaCapabilities:{decodingInfo:function(){return Promise.resolve({supported:true,smooth:true,powerEfficient:true})}},mediaSession:{setActionHandler:function(){},metadata:null,playbackState:'none'},permissions:{query:function(){return Promise.resolve({state:'prompt'})}},storage:{estimate:function(){return Promise.resolve({usage:0,quota:1073741824})}},usb:{getDevices:function(){return Promise.resolve([])},requestDevice:function(){return Promise.reject(new DOMException('','NotFoundError'))}},serial:{getPorts:function(){return Promise.resolve([])}},hid:{getDevices:function(){return Promise.resolve([])}},gpu:undefined,ink:undefined,keyboard:{lock:function(){return Promise.resolve()},unlock:function(){}},wakeLock:{request:function(){return Promise.reject(new DOMException('','NotAllowedError'))}},pdfViewerEnabled:true,doNotTrack:null,maxTouchPoints:0,webdriver:false,scheduling:{isInputPending:function(){return false}},userActivation:{hasBeenActive:false,isActive:false}};
+    \\  Object.keys(navStubs).forEach(function(k){
+    \\    if(!(k in navigator))try{Object.defineProperty(navigator,k,{value:navStubs[k],configurable:true,enumerable:true})}catch(e){}
+    \\  });
+    \\  // Document property stubs
+    \\  var docStubs = {fullscreen:false,fullscreenElement:null,fullscreenEnabled:true,pictureInPictureElement:null,pictureInPictureEnabled:true,onvisibilitychange:null,onselectstart:null,onselectionchange:null,onfullscreenchange:null,onfullscreenerror:null,onpointerlockchange:null,onpointerlockerror:null,wasDiscarded:false,featurePolicy:{allowsFeature:function(){return true},features:function(){return[]},allowedFeatures:function(){return[]}}};
+    \\  Object.keys(docStubs).forEach(function(k){
+    \\    if(!(k in document))try{Object.defineProperty(document,k,{value:docStubs[k],writable:true,configurable:true,enumerable:true})}catch(e){}
+    \\  });
+    \\  // Chrome object
+    \\  if(!window.chrome)window.chrome={app:{isInstalled:false,getDetails:function(){return null},getIsInstalled:function(){return false},installState:function(){return'disabled'}},csi:function(){return{startE:Date.now(),onloadT:Date.now(),pageT:Date.now()-performance.timing.navigationStart,tran:15}},loadTimes:function(){return{commitLoadTime:Date.now()/1000,connectionInfo:'h2',finishDocumentLoadTime:0,finishLoadTime:0,firstPaintAfterLoadTime:0,firstPaintTime:0,navigationType:'Other',npnNegotiatedProtocol:'h2',requestTime:Date.now()/1000-0.3,startLoadTime:Date.now()/1000-0.5,wasAlternateProtocolAvailable:false,wasFetchedViaSpdy:true,wasNpnNegotiated:true}},runtime:{connect:function(){return{onMessage:{addListener:function(){}},onDisconnect:{addListener:function(){}},postMessage:function(){}}},sendMessage:function(){}}};
+    \\})();
 ;
