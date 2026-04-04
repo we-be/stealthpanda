@@ -210,6 +210,12 @@ pub const script: [:0]const u8 =
     \\        // Log ALL keys in the extraParams message (not just wPr)
     \\        var keys = Object.keys(e.data).sort().join(',');
     \\        console.warn('EXTRA_KEYS: ' + keys);
+    \\        // Normalize timing values to match Chrome headless ranges
+    \\        var oldRender = e.data.timeRenderMs;
+    \\        if (typeof e.data.timeRenderMs === 'number' && e.data.timeRenderMs > 10) {
+    \\          e.data.timeRenderMs = Math.floor(Math.random() * 5) + 4;
+    \\        }
+    \\        console.warn('TIMING_FIX: render ' + oldRender + ' -> ' + e.data.timeRenderMs);
     \\        // Log specific timing and fingerprint fields
     \\        if (e.data.apiJsResourceTiming) console.warn('EXTRA_RT: ' + JSON.stringify(e.data.apiJsResourceTiming).substring(0,120));
     \\        if (e.data.chlPageData) console.warn('EXTRA_CPD: ' + JSON.stringify(e.data.chlPageData).substring(0,120));
