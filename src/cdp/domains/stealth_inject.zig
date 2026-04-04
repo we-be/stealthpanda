@@ -1137,7 +1137,6 @@ pub const script: [:0]const u8 =
     \\      onmessage: null, onerror: null,
     \\      _listeners: {},
     \\      postMessage: function(data) {
-    \\        console.warn('WK#' + _wid + '_PM: code=' + (_code ? _code.length : 'null') + ' data=' + (typeof data === 'string' ? data.substring(0,60) : JSON.stringify(data).substring(0,60)));
     \\        if (!_code) {
     \\          _pmRetries++;
     \\          if (_pmRetries <= 5) {
@@ -1145,7 +1144,12 @@ pub const script: [:0]const u8 =
     \\          }
     \\          return;
     \\        }
-    \\        console.warn('WK_PM_IN: ' + (typeof data === 'string' ? data.substring(0,60) : JSON.stringify(data).substring(0,60)));
+    \\        // ASYNC: queue message processing like real Workers.
+    \\        // Real Workers receive messages on a separate thread — main thread
+    \\        // continues immediately after postMessage. We simulate this with
+    \\        // setTimeout(0) for message processing, so the VM can send multiple
+    \\        // messages without blocking.
+    \\        setTimeout(function() {
     \\        try {
     \\          var scope = { postMessage: function(msg) {
     \\            var msgStr = JSON.stringify(msg).substring(0,80);
@@ -1239,6 +1243,7 @@ pub const script: [:0]const u8 =
     \\          console.warn('IF_WORKER: code ERROR ' + (e.message || e).substring(0, 80) + (e.stack ? ' STACK:' + e.stack.split('\n').slice(0,3).join('|') : ''));
     \\          if (worker.onerror) worker.onerror({message: e.message, error: e});
     \\        }
+    \\        }, 0); // end setTimeout — async message processing
     \\      },
     \\      terminate: function() {},
     \\      addEventListener: function(type, fn) {
