@@ -255,13 +255,16 @@ pub const script: [:0]const u8 =
     \\if (!window.chrome) window.chrome = {};
     \\if (!window.chrome.runtime) {
     \\  window.chrome.runtime = {
-    \\    connect: function() {},
+    \\    connect: function() { return {onMessage:{addListener:function(){}},onDisconnect:{addListener:function(){}},postMessage:function(){}}; },
     \\    sendMessage: function() {},
     \\    onMessage: { addListener: function() {}, removeListener: function() {} },
     \\    onConnect: { addListener: function() {}, removeListener: function() {} },
     \\  };
     \\}
-    \\if (!window.chrome.csi) window.chrome.csi = function() { return {}; };
+    \\if (!window.chrome.app) {
+    \\  window.chrome.app = {isInstalled:false,getDetails:function(){return null},getIsInstalled:function(){return false},installState:function(){return'disabled'},runningState:function(){return'cannot_run'}};
+    \\}
+    \\if (!window.chrome.csi) window.chrome.csi = function() { return {startE:Date.now(),onloadT:Date.now(),pageT:0,tran:15}; };
     \\if (!window.chrome.loadTimes) window.chrome.loadTimes = function() {
     \\  return {
     \\    commitLoadTime: Date.now() / 1000,
