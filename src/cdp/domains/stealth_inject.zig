@@ -138,7 +138,16 @@ pub const script: [:0]const u8 =
     \\      return origST.apply(null, arguments);
     \\    };
     \\  })();
-    \\  // Canvas tracking removed — confirmed working via test_canvas.html
+    \\  // Track JS errors that V8 catches internally
+    \\  window.addEventListener('error', function(e) {
+    \\    console.warn('IF_ERR: ' + (e.message || '') + ' at ' + (e.filename || '').slice(-40) + ':' + e.lineno);
+    \\  });
+    \\  window.addEventListener('unhandledrejection', function(e) {
+    \\    var r = e.reason || {};
+    \\    var msg = r.message || String(r);
+    \\    var stack = r.stack ? r.stack.split('\n').slice(0,3).join(' | ') : '';
+    \\    console.warn('IF_REJ: ' + msg.substring(0, 60) + ' STACK: ' + stack.substring(0,80));
+    \\  });
     \\  // Suppress overrunBegin (our POW slightly slower than real Workers)
     \\  try {
     \\    var _pmOrig = window.parent.postMessage.bind(window.parent);
@@ -201,6 +210,16 @@ pub const script: [:0]const u8 =
     \\Object.defineProperty(navigator, 'webdriver', {
     \\  get: () => false, configurable: false, enumerable: true
     \\});
+    // Override getBattery to return a proper BatteryManager stub
+    // Chrome always resolves getBattery() — rejection is a detection vector
+    \\navigator.getBattery = function() {
+    \\  return Promise.resolve({
+    \\    charging: true, chargingTime: 0, dischargingTime: Infinity, level: 1,
+    \\    addEventListener: function() {}, removeEventListener: function() {},
+    \\    onchargingchange: null, onchargingtimechange: null,
+    \\    ondischargingtimechange: null, onlevelchange: null
+    \\  });
+    \\};
     \\
     \\
     \\
@@ -590,12 +609,15 @@ pub const script: [:0]const u8 =
     \\        }
     \\        try {
     \\          var scope = { postMessage: function(msg) {
-    \\            // Deliver worker→main messages synchronously for speed
-    \\            var ev = {data: msg, isTrusted: true, origin: '', source: null, type: 'message',
-    \\                   ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
-    \\                   stopImmediatePropagation: function(){}};
-    \\            if (worker.onmessage) worker.onmessage(ev);
-    \\            (worker._listeners['message'] || []).forEach(function(fn) { fn(ev); });
+    \\            // Deliver worker→main messages ASYNCHRONOUSLY to match real Worker behavior
+    \\            // Real Workers deliver messages via event loop, not synchronously
+    \\            setTimeout(function() {
+    \\              var ev = {data: msg, isTrusted: true, origin: '', source: null, type: 'message',
+    \\                     ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
+    \\                     stopImmediatePropagation: function(){}};
+    \\              if (worker.onmessage) worker.onmessage(ev);
+    \\              (worker._listeners['message'] || []).forEach(function(fn) { fn(ev); });
+    \\            }, 0);
     \\          }, addEventListener: function(t, fn) { if (t === 'message') _msgHandler = fn; },
     \\          removeEventListener: function() {}, close: function() {},
     \\          importScripts: function() {},

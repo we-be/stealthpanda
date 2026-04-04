@@ -97,8 +97,10 @@ pub fn getMediaDevices(self: *Navigator) *MediaDevices {
 }
 
 pub fn getBattery(_: *const Navigator, page: *Page) !js.Promise {
-    log.info(.not_implemented, "navigator.getBattery", .{});
-    return page.js.local.?.rejectErrorPromise(.{ .dom_exception = .{ .err = error.NotSupported } });
+    // Return a resolved promise to avoid NotSupportedError rejection.
+    // The actual BatteryManager stub is added via stealth inject JS.
+    // A rejected getBattery() is a detection vector (Chrome always resolves it).
+    return page.js.local.?.resolvePromise(true);
 }
 
 pub fn registerProtocolHandler(_: *const Navigator, scheme: []const u8, url: [:0]const u8, page: *const Page) !void {
