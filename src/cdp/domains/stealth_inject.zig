@@ -1063,7 +1063,8 @@ pub const script: [:0]const u8 =
     \\          if (handler) {
     \\            // Log the eval'd code for POW analysis
     \\            if (typeof data === 'string' && data.length > 50) {
-    \\              console.warn('IF_WK_EVAL: len=' + data.length + ' code=' + data.substring(0,120));
+    \\              console.warn('WK1: ' + data.substring(0,120));
+    \\              if (data.length > 120) console.warn('WK2: ' + data.substring(120,240));
     \\            }
     \\            var mev = {data: data, isTrusted: true, origin: '', source: null, type: 'message',
     \\                     ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
