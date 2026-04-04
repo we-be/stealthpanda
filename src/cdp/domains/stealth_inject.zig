@@ -87,7 +87,7 @@ pub const script: [:0]const u8 =
     \\    } catch(e) {}
     \\  }
     \\})();
-    // Parent-side: track Turnstile challenge events
+    // Parent-side: track Turnstile challenge events + extraParams data
     \\if (window === window.top) {
     \\  window.addEventListener('message', function(e) {
     \\    if (e.data && typeof e.data === 'object' && e.data.event && e.data.source === 'cloudflare-challenge') {
@@ -97,13 +97,35 @@ pub const script: [:0]const u8 =
     \\          extra = ' code=' + (e.data.code || 'none');
     \\          extra += ' cfChlOut=' + String(e.data.cfChlOut || '').substring(0,40);
     \\        }
+    \\        if (e.data.event === 'requestExtraParams' && e.data.wPr) {
+    \\          try {
+    \\            var wp = JSON.stringify(e.data.wPr);
+    \\            console.warn('PAR_WPR: ' + wp.substring(0,120));
+    \\            console.warn('PAR_WPR2: ' + wp.substring(120,240));
+    \\          } catch(ex) {}
+    \\        }
     \\        console.warn('PAR_IN: ' + e.data.event + extra);
     \\      }
     \\    }
     \\  });
     \\}
-    // Minimal iframe instrumentation
+    // Iframe instrumentation
     \\if (window !== window.top) {
+    \\  // Capture extraParams fingerprint data from parent
+    \\  window.addEventListener('message', function(e) {
+    \\    if (e.data && typeof e.data === 'object' && e.data.event === 'extraParams' && e.data.wPr) {
+    \\      try {
+    \\        var wp = JSON.stringify(e.data.wPr);
+    \\        // Output in 120-char chunks
+    \\        for (var ci = 0; ci < wp.length; ci += 120) {
+    \\          console.warn('WPR' + Math.floor(ci/120) + ': ' + wp.substring(ci, ci+120));
+    \\        }
+    \\        console.warn('WPR_LEN: ' + wp.length);
+    \\        // Also log the top-level keys
+    \\        console.warn('WPR_KEYS: ' + Object.keys(e.data.wPr).join(','));
+    \\      } catch(ex) { console.warn('WPR_ERR: ' + ex.message); }
+    \\    }
+    \\  });
     \\  // Suppress overrunBegin — our POW is slightly slower than real Workers
     \\  var _origPM2 = window.parent.postMessage;
     \\  try {
@@ -138,7 +160,8 @@ pub const script: [:0]const u8 =
     \\  var _xhrFlowCount = 0;
     \\  var _flowStartTime = Date.now();
     \\  XMLHttpRequest.prototype.send = function(body) {
-    \\    if (this._stUrl && this._stUrl.indexOf('flow/ov1') >= 0 && body) {
+    \\    // Track ALL challenge-related XHR requests (not just flow/ov1)
+    \\    if (this._stUrl && (this._stUrl.indexOf('/ov1') >= 0 || this._stUrl.indexOf('challenge') >= 0)) {
     \\      _xhrFlowCount++;
     \\      var flowNum = _xhrFlowCount;
     \\      var elapsed = Date.now() - _flowStartTime;
