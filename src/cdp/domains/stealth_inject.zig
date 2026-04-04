@@ -184,21 +184,10 @@ pub const script: [:0]const u8 =
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
     \\  };
-    \\  // Accelerate 550ms VM processing timers to 1ms
-    \\  var _stCount = 0;
+    \\  // Accelerate 550ms VM timers to speed up POW
     \\  var _origST = window.setTimeout;
     \\  window.setTimeout = function(fn, ms) {
-    \\    _stCount++;
-    \\    var actualMs = ms;
-    \\    if (ms === 550) actualMs = 1;
-    \\    if (_stCount <= 5 || _stCount % 10 === 0) {
-    \\      console.warn('IF_TIMER: count=' + _stCount + ' ms=' + ms + (actualMs !== ms ? '->1' : ''));
-    \\    }
-    \\    if (actualMs !== ms) {
-    \\      var args = [fn, actualMs];
-    \\      for (var ai = 2; ai < arguments.length; ai++) args.push(arguments[ai]);
-    \\      return _origST.apply(window, args);
-    \\    }
+    \\    if (ms === 550) return _origST.call(window, fn, 50);
     \\    return _origST.apply(window, arguments);
     \\  };
     \\  // Intercept postMessage to suppress overrunBegin/overrunEnd
