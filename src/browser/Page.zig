@@ -432,11 +432,11 @@ pub fn headersForRequest(self: *Page, headers: *HttpClient.Headers) !void {
         try headers.add(referer);
     }
 
-    // Add Chrome Client Hints headers (Sec-CH-UA, Sec-CH-UA-Mobile, Sec-CH-UA-Platform)
-    // These are sent by Chrome on every request and CF checks for them.
+    // Add Chrome Client Hints for XHR/fetch requests
     try headers.add("Sec-CH-UA: \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\", \"Google Chrome\";v=\"131\"");
     try headers.add("Sec-CH-UA-Mobile: ?0");
     try headers.add("Sec-CH-UA-Platform: \"Linux\"");
+    try headers.add("Accept-Language: en-US,en;q=0.9");
 }
 
 pub fn getArena(self: *Page, comptime opts: Session.GetArenaOpts) !Allocator {
@@ -582,7 +582,9 @@ pub fn navigate(self: *Page, request_url: [:0]const u8, opts: NavigateOpts) !voi
     if (opts.header) |hdr| {
         try headers.add(hdr);
     }
-    // Add Chrome Client Hints and Sec-Fetch headers for navigation requests
+    // Add Chrome-like headers for navigation requests
+    try headers.add("Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
+    try headers.add("Accept-Language: en-US,en;q=0.9");
     try headers.add("Sec-CH-UA: \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\", \"Google Chrome\";v=\"131\"");
     try headers.add("Sec-CH-UA-Mobile: ?0");
     try headers.add("Sec-CH-UA-Platform: \"Linux\"");
@@ -590,6 +592,7 @@ pub fn navigate(self: *Page, request_url: [:0]const u8, opts: NavigateOpts) !voi
     try headers.add("Sec-Fetch-Mode: navigate");
     try headers.add("Sec-Fetch-Site: none");
     try headers.add("Sec-Fetch-User: ?1");
+    try headers.add("Upgrade-Insecure-Requests: 1");
     // We dispatch page_navigate event before sending the request.
     // It ensures the event page_navigated is not dispatched before this one.
     session.notification.dispatch(.page_navigate, &.{

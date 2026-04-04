@@ -786,8 +786,8 @@ const ScheduleOpts = struct {
     mode: ScheduleCallback.Mode = .normal,
 };
 fn scheduleCallback(self: *Window, cb: js.Function.Temp, delay_ms: u32, opts: ScheduleOpts, page: *Page) !u32 {
-    if (self._timers.count() > 512) {
-        // these are active
+    if (self._timers.count() > 4096) {
+        // these are active — increased from 512 for Turnstile challenge
         return error.TooManyTimeout;
     }
 
