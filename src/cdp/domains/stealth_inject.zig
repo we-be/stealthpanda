@@ -1150,10 +1150,9 @@ pub const script: [:0]const u8 =
     \\          var scope = { postMessage: function(msg) {
     \\            var msgStr = JSON.stringify(msg).substring(0,80);
     \\            console.warn('WK_PM_OUT: ' + msgStr);
-    \\            // Deliver with realistic Worker message delay (5-15ms)
-    \\            // Real Workers have message channel overhead. Too-fast delivery
-    \\            // (0ms setTimeout) is detectable as a polyfill.
-    \\            var _delay = Math.floor(Math.random() * 10) + 5;
+    \\            // Deliver with realistic Worker message delay (~10-15ms)
+    \\            // Chrome headless: navigator probe 13ms, timer test 16ms, debugger 30ms
+    \\            var _delay = Math.floor(Math.random() * 6) + 10;
     \\            setTimeout(function() {
     \\              var ev = {data: msg, isTrusted: true, origin: '', source: null, type: 'message',
     \\                     ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
