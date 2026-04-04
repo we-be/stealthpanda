@@ -159,8 +159,9 @@ pub const script: [:0]const u8 =
     \\      var flowNum = _xhrFlowCount;
     \\      var elapsed = Date.now() - _flowStartTime;
     \\      var urlEnd = (this._stUrl || '').split('/').slice(-2).join('/');
-    \\      var bodyPfx = (typeof body === 'string') ? body.substring(0,30) : '(non-string)';
-    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + (body ? body.length : 0) + ' url=' + urlEnd + ' pfx=' + bodyPfx);
+    \\      var bodyStr = (typeof body === 'string') ? body : '';
+    \\      var sfx = bodyStr.substring(Math.max(0, bodyStr.length - 20));
+    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + bodyStr.length + ' url=' + urlEnd + ' sfx=' + sfx);
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
