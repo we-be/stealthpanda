@@ -160,7 +160,13 @@ pub const script: [:0]const u8 =
     \\  // Track ALL XHR requests from iframe
     \\  var _origXHRSend = XMLHttpRequest.prototype.send;
     \\  var _origXHROpen = XMLHttpRequest.prototype.open;
-    \\  XMLHttpRequest.prototype.open = function(m, u) { this._stUrl = u; return _origXHROpen.apply(this, arguments); };
+    \\  XMLHttpRequest.prototype.open = function(m, u) { this._stUrl = u; this._stMethod = m; return _origXHROpen.apply(this, arguments); };
+    \\  var _origSetReqHdr = XMLHttpRequest.prototype.setRequestHeader;
+    \\  var _xhrHeaders = {};
+    \\  XMLHttpRequest.prototype.setRequestHeader = function(name, val) {
+    \\    _xhrHeaders[name] = val;
+    \\    return _origSetReqHdr.apply(this, arguments);
+    \\  };
     \\  var _xhrFlowCount = 0;
     \\  var _flowStartTime = Date.now();
     \\  XMLHttpRequest.prototype.send = function(body) {
@@ -168,7 +174,9 @@ pub const script: [:0]const u8 =
     \\      _xhrFlowCount++;
     \\      var flowNum = _xhrFlowCount;
     \\      var elapsed = Date.now() - _flowStartTime;
-    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + body.length);
+    \\      var hdrs = JSON.stringify(_xhrHeaders);
+    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + body.length + ' hdrs=' + hdrs);
+    \\      _xhrHeaders = {};
     \\      console.warn('IF_BODY_URL: ' + (this._stUrl || '').slice(-60));
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
@@ -177,14 +185,15 @@ pub const script: [:0]const u8 =
     \\        // Check response headers for Set-Cookie
     \\        var hdrs = xhr.getAllResponseHeaders() || '';
     \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length);
-    \\        if (hdrs.indexOf('set-cookie') >= 0 || hdrs.indexOf('Set-Cookie') >= 0) {
-    \\          console.warn('IF_RSP_COOKIE: ' + hdrs.substring(0,80));
+    \\        if (flowNum >= 2) {
+    \\          console.warn('IF_RSP_HDRS: ' + hdrs.substring(0,100));
+    \\          console.warn('IF_RSP_BODY: ' + rsp);
     \\        }
     \\      });
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
     \\  };
-    \\  // Accelerate 550ms VM timers to speed up POW
+    \\  // Accelerate 550ms VM timers
     \\  var _origST = window.setTimeout;
     \\  window.setTimeout = function(fn, ms) {
     \\    if (ms === 550) return _origST.call(window, fn, 50);

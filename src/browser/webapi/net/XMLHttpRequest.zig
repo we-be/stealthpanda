@@ -235,6 +235,10 @@ pub fn send(self: *XMLHttpRequest, body_: ?[]const u8) !void {
     if (body_) |b| {
         if (self._method != .GET and self._method != .HEAD) {
             self._request_body = try self._arena.dupe(u8, b);
+            // Per XHR spec: set default Content-Type for string body
+            if (!self._request_headers.has("Content-Type", self._page)) {
+                try self._request_headers.append("Content-Type", "text/plain;charset=UTF-8", self._page);
+            }
         }
     }
 
