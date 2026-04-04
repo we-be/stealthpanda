@@ -104,7 +104,8 @@ fn certDecompress(
 fn sslInfoCallback(ssl: *boringssl.SSL, where: c_int, _: c_int) callconv(.c) void {
     const SSL_CB_HANDSHAKE_START: c_int = 0x10;
     if (where & SSL_CB_HANDSHAKE_START != 0) {
-        // Use the old ALPS codepoint 17513 (Chrome's current value)
+        // Use the old ALPS codepoint (produces smaller challenge response)
+        // The new codepoint (1) maps to 0x44cd in our BoringSSL, not 0xfe0d
         boringssl.SSL_set_alps_use_new_codepoint(ssl, 0);
         // Add ALPS settings for h2 protocol
         // Chrome sends its H2 SETTINGS via ALPS during the TLS handshake
