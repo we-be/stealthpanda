@@ -167,7 +167,8 @@ pub const script: [:0]const u8 =
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
     \\        var elapsed2 = Date.now() - _flowStartTime;
-    \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length);
+    \\        var rspBody = rsp.length <= 50 ? rsp : rsp.substring(0,50);
+    \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length + ' body=' + rspBody);
     \\      });
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
