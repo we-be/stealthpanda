@@ -124,6 +124,36 @@ pub fn ArrayBufferRef(comptime kind: ArrayType) type {
             }
         };
 
+        pub fn initWithData(local: *const Local, size: usize, src_data: []const u8) Self {
+            const ctx = local.ctx;
+            const isolate = ctx.isolate;
+            const bits = switch (@typeInfo(BackingInt)) {
+                .int => |n| n.bits,
+                .float => |f| f.bits,
+                else => unreachable,
+            };
+            const buffer_len = size * bits / 8;
+            const backing_store = v8.v8__ArrayBuffer__NewBackingStore(isolate.handle, buffer_len).?;
+            const data_ptr: [*]u8 = @ptrCast(@alignCast(v8.v8__BackingStore__Data(backing_store)));
+            const copy_len = @min(src_data.len, buffer_len);
+            @memcpy(data_ptr[0..copy_len], src_data[0..copy_len]);
+            const backing_store_ptr = v8.v8__BackingStore__TO_SHARED_PTR(backing_store);
+            const array_buffer = v8.v8__ArrayBuffer__New2(isolate.handle, &backing_store_ptr).?;
+            const handle: *const v8.Value = switch (comptime kind) {
+                .int8 => @ptrCast(v8.v8__Int8Array__New(array_buffer, 0, size).?),
+                .uint8 => @ptrCast(v8.v8__Uint8Array__New(array_buffer, 0, size).?),
+                .uint8_clamped => @ptrCast(v8.v8__Uint8ClampedArray__New(array_buffer, 0, size).?),
+                .int16 => @ptrCast(v8.v8__Int16Array__New(array_buffer, 0, size).?),
+                .uint16 => @ptrCast(v8.v8__Uint16Array__New(array_buffer, 0, size).?),
+                .int32 => @ptrCast(v8.v8__Int32Array__New(array_buffer, 0, size).?),
+                .uint32 => @ptrCast(v8.v8__Uint32Array__New(array_buffer, 0, size).?),
+                .float16 => @ptrCast(v8.v8__Float16Array__New(array_buffer, 0, size).?),
+                .float32 => @ptrCast(v8.v8__Float32Array__New(array_buffer, 0, size).?),
+                .float64 => @ptrCast(v8.v8__Float64Array__New(array_buffer, 0, size).?),
+            };
+            return .{ .local = local, .handle = handle };
+        }
+
         pub fn init(local: *const Local, size: usize) Self {
             const ctx = local.ctx;
             const isolate = ctx.isolate;

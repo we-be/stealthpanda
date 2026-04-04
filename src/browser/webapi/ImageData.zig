@@ -83,6 +83,20 @@ pub fn init(
     });
 }
 
+pub fn initWithData(
+    width: u32,
+    height: u32,
+    data: []const u8,
+    page: *Page,
+) !*ImageData {
+    const size = width * height * 4;
+    return page._factory.create(ImageData{
+        ._width = width,
+        ._height = height,
+        ._data = try page.js.local.?.createTypedArrayWithData(.uint8_clamped, size, data).persist(),
+    });
+}
+
 pub fn getWidth(self: *const ImageData) u32 {
     return self._width;
 }

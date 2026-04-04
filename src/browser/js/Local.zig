@@ -82,6 +82,10 @@ pub fn createTypedArray(self: *const Local, comptime array_type: js.ArrayType, s
     return .init(self, size);
 }
 
+pub fn createTypedArrayWithData(self: *const Local, comptime array_type: js.ArrayType, size: usize, data: []const u8) js.ArrayBufferRef(array_type) {
+    return .initWithData(self, size, data);
+}
+
 pub fn newCallback(
     self: *const Local,
     callback: anytype,

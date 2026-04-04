@@ -3,6 +3,14 @@
 // Patches JS APIs that bot detectors probe to detect automation.
 
 pub const script: [:0]const u8 =
+    // Critical fingerprint fixes — run before main block with individual error handling
+    \\try{if(!window.isSecureContext)Object.defineProperty(window,'isSecureContext',{value:true,writable:false,configurable:true})}catch(e){}
+    // Debug: intercept XHR flow responses
+    \\try{var _xo=XMLHttpRequest.prototype.open,_xs=XMLHttpRequest.prototype.send;
+    \\XMLHttpRequest.prototype.open=function(m,u){this._u=u;return _xo.apply(this,arguments)};
+    \\XMLHttpRequest.prototype.send=function(){var s=this,oh=this.onreadystatechange;
+    \\this.addEventListener('load',function(){if(s._u&&s._u.indexOf('flow')>-1)console.warn('[FLOW]',s.status,s._u.substring(0,60),s.responseText.substring(0,200))});
+    \\return _xs.apply(this,arguments)}}catch(e){}
     \\try { // begin main stealth block
     \\
     \\(function() {
@@ -21,6 +29,55 @@ pub const script: [:0]const u8 =
     \\  });
     \\})();
     \\
+    \\
+    \\
+    // Trusted Types API stub (used by Angular, React apps for XSS protection)
+    \\if (typeof window.trustedTypes === 'undefined') {
+    \\  var _policy = {
+    \\    createHTML: function(s) { return s; },
+    \\    createScript: function(s) { return s; },
+    \\    createScriptURL: function(s) { return s; },
+    \\  };
+    \\  window.trustedTypes = {
+    \\    createPolicy: function(name, rules) {
+    \\      return {
+    \\        createHTML: rules.createHTML || _policy.createHTML,
+    \\        createScript: rules.createScript || _policy.createScript,
+    \\        createScriptURL: rules.createScriptURL || _policy.createScriptURL,
+    \\      };
+    \\    },
+    \\    defaultPolicy: _policy,
+    \\    isHTML: function() { return true; },
+    \\    isScript: function() { return true; },
+    \\    isScriptURL: function() { return true; },
+    \\    emptyHTML: '',
+    \\    emptyScript: '',
+    \\    getAttributeType: function() { return null; },
+    \\    getPropertyType: function() { return null; },
+    \\  };
+    \\}
+    \\
+    // Web Animations API stub (Element.animate)
+    \\if (!Element.prototype.animate) {
+    \\  Element.prototype.animate = function(keyframes, options) {
+    \\    var duration = (typeof options === 'number') ? options : (options && options.duration) || 0;
+    \\    var anim = {
+    \\      playState: 'finished', currentTime: duration, effect: null,
+    \\      finished: Promise.resolve(), ready: Promise.resolve(),
+    \\      cancel: function() { this.playState = 'idle'; },
+    \\      finish: function() { this.playState = 'finished'; },
+    \\      play: function() { this.playState = 'finished'; },
+    \\      pause: function() { this.playState = 'paused'; },
+    \\      reverse: function() {},
+    \\      addEventListener: function() {},
+    \\      removeEventListener: function() {},
+    \\      dispatchEvent: function() { return true; },
+    \\      onfinish: null, oncancel: null, onremove: null,
+    \\    };
+    \\    if (anim.onfinish) setTimeout(anim.onfinish, 0);
+    \\    return anim;
+    \\  };
+    \\}
     \\
     \\
     // Lock navigator.webdriver to false
@@ -216,6 +273,8 @@ pub const script: [:0]const u8 =
     \\      register: function() { return Promise.reject(new Error('not supported')); },
     \\      ready: Promise.resolve(null),
     \\      controller: null,
+    \\      addEventListener: function() {},
+    \\      removeEventListener: function() {},
     \\      getRegistrations: function() { return Promise.resolve([]); },
     \\    }; },
     \\    configurable: true
@@ -443,6 +502,7 @@ pub const script: [:0]const u8 =
     \\  };
     \\})();
     \\
+    \\
     // Ensure AudioContext prototype has all expected methods
     \\(function() {
     \\  if (typeof AudioContext === 'function') {
@@ -516,6 +576,22 @@ pub const script: [:0]const u8 =
     // Make Blob and Worker wrappers look native
     \\if (typeof Blob === 'function') makeNative(Blob, 'Blob');
     \\if (typeof Worker === 'function') makeNative(Worker, 'Worker');
+    // Listen for Turnstile interactiveBegin and try to send completion
+    \\window.addEventListener('message', function(e) {
+    \\  var d = e.data;
+    \\  if (d && d.source === 'cloudflare-challenge' && d.event === 'interactiveBegin') {
+    \\    // Respond with interactiveComplete to all iframes
+    \\    setTimeout(function() {
+    \\      var iframes = document.querySelectorAll('iframe');
+    \\      for (var i = 0; i < iframes.length; i++) {
+    \\        try { iframes[i].contentWindow.postMessage({source:'cloudflare-challenge',widgetId:d.widgetId,event:'interactiveComplete'}, '*'); } catch(e) {}
+    \\      }
+    \\      // Also try posting to parent
+    \\      try { if (window.parent !== window) window.parent.postMessage({source:'cloudflare-challenge',widgetId:d.widgetId,event:'interactiveComplete'}, '*'); } catch(e) {}
+    \\    }, 500);
+    \\  }
+    \\});
+    \\
     // Auto-solve Turnstile interactive mode by clicking inside challenge iframes
     \\(function() {
     \\  // Listen for interactiveBegin from challenge iframes and auto-click

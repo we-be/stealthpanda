@@ -22,6 +22,8 @@ const boringssl = struct {
     extern fn SSL_CTX_set_grease_enabled(ctx: *SSL_CTX, enabled: c_int) void;
     // Extension permutation: randomize extension order in ClientHello (Chrome does this since ~106)
     extern fn SSL_CTX_set_permute_extensions(ctx: *SSL_CTX, enabled: c_int) void;
+    // Set supported groups (curves) by name string (colon-separated)
+    extern fn SSL_CTX_set1_groups_list(ctx: *SSL_CTX, groups: [*:0]const u8) c_int;
     // ALPS (Application-Layer Protocol Settings)
     const SSL = anyopaque;
     extern fn SSL_CTX_set_info_callback(ctx: *SSL_CTX, cb: ?*const fn (*SSL, c_int, c_int) callconv(.c) void) void;
@@ -32,6 +34,10 @@ const boringssl = struct {
 /// SSL context callback — configures BoringSSL to send Chrome-like extensions
 fn sslCtxCallback(_: ?*libcurl.Curl, ssl_ctx: ?*anyopaque, _: ?*anyopaque) callconv(.c) c_uint {
     const ctx: *boringssl.SSL_CTX = @ptrCast(ssl_ctx orelse return 0);
+    // Set supported groups with post-quantum X25519MLKEM768 (Chrome 131+)
+    // Must use SSL_CTX_set1_groups_list directly because curl's curves API
+    // may not support post-quantum group names
+    _ = boringssl.SSL_CTX_set1_groups_list(ctx, "X25519MLKEM768:X25519:P-256:P-384");
     // Enable GREASE (RFC 8701) — Chrome adds random GREASE values
     boringssl.SSL_CTX_set_grease_enabled(ctx, 1);
     // Enable extension permutation — Chrome randomizes extension order (since ~106)
@@ -142,7 +148,8 @@ pub const TlsProfile = struct {
             "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:" ++
             "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:" ++
             "ECDHE-RSA-AES128-SHA:ECDHE-RSA-AES256-SHA:" ++
-            "AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA:AES256-SHA",
+            "AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA:AES256-SHA:" ++
+            "ECDHE-ECDSA-AES256-SHA",
         .tls13_ciphers = "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
         .ec_curves = "X25519:P-256:P-384",
         // CURL_HTTP_VERSION_2TLS = 4: HTTP/2 for HTTPS, HTTP/1.1 for HTTP

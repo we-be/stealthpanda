@@ -289,6 +289,17 @@ pub fn getTextContentAlloc(self: *Node, allocator: Allocator) error{WriteFailed}
 /// of all the Text node children of the node, in tree order.
 /// This differs from textContent which includes all descendant text.
 /// See: https://dom.spec.whatwg.org/#concept-child-text-content
+pub fn getChildTextLength(self: *Node) usize {
+    var len: usize = 0;
+    var it = self.childrenIterator();
+    while (it.next()) |child| {
+        if (child.is(CData.Text)) |text| {
+            len += text._proto._data.str().len;
+        }
+    }
+    return len;
+}
+
 pub fn getChildTextContent(self: *Node, writer: *std.Io.Writer) error{WriteFailed}!void {
     var it = self.childrenIterator();
     while (it.next()) |child| {

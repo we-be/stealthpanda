@@ -108,8 +108,8 @@ pub fn putImageData(_: *const CanvasRenderingContext2D, _: *ImageData, _: f64, _
 
 pub fn getImageData(
     self: *CanvasRenderingContext2D,
-    _: i32, // sx
-    _: i32, // sy
+    sx: i32,
+    sy: i32,
     sw: i32,
     sh: i32,
     page: *Page,
@@ -119,11 +119,47 @@ pub fn getImageData(
     }
 
     self.ensureSurface(page);
-    // TODO: Copy actual pixel data from z2d surface into ImageData.
-    // Currently returns a blank ImageData because the V8 typed array
-    // backing store is not directly writable from Zig.
-    // The canvas fingerprint via toDataURL() works correctly though.
-    return ImageData.init(@intCast(sw), @intCast(sh), null, page);
+
+    const width: u32 = @intCast(sw);
+    const height: u32 = @intCast(sh);
+    const pixel_count = width * height * 4;
+
+    // Try to copy actual pixel data from z2d surface
+    if (self._surface) |sfc| {
+        const surf_w: usize = @intCast(sfc.image_surface_rgba.width);
+        const surf_h: usize = @intCast(sfc.image_surface_rgba.height);
+        const surf_buf = sfc.image_surface_rgba.buf;
+
+        // Create ImageData with pixel data from surface
+        var pixel_data = try page.call_arena.alloc(u8, pixel_count);
+        @memset(pixel_data, 0);
+
+        var dy: usize = 0;
+        while (dy < height) : (dy += 1) {
+            const sy_offset: i64 = @as(i64, @intCast(dy)) + @as(i64, sy);
+            if (sy_offset < 0 or sy_offset >= @as(i64, @intCast(surf_h))) continue;
+            const src_y: usize = @intCast(sy_offset);
+            var dx: usize = 0;
+            while (dx < width) : (dx += 1) {
+                const sx_offset: i64 = @as(i64, @intCast(dx)) + @as(i64, sx);
+                if (sx_offset < 0 or sx_offset >= @as(i64, @intCast(surf_w))) continue;
+                const src_x: usize = @intCast(sx_offset);
+                const src_idx = src_y * surf_w + src_x;
+                const dst_idx = (dy * width + dx) * 4;
+                if (src_idx < surf_buf.len and dst_idx + 3 < pixel_data.len) {
+                    const pixel = surf_buf[src_idx];
+                    pixel_data[dst_idx + 0] = pixel.r;
+                    pixel_data[dst_idx + 1] = pixel.g;
+                    pixel_data[dst_idx + 2] = pixel.b;
+                    pixel_data[dst_idx + 3] = pixel.a;
+                }
+            }
+        }
+
+        return ImageData.initWithData(width, height, pixel_data, page);
+    }
+
+    return ImageData.init(width, height, null, page);
 }
 
 fn fillToZ2dPixel(self: *const CanvasRenderingContext2D) z2d.Pixel {

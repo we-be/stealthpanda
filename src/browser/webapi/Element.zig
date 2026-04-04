@@ -1105,36 +1105,95 @@ pub fn checkVisibility(self: *Element, opts_: ?CheckVisibilityOpts, page: *Page)
 }
 
 fn getElementDimensions(self: *Element, page: *Page) struct { width: f64, height: f64 } {
-    var width: f64 = 5.0;
-    var height: f64 = 5.0;
+    var width: f64 = 0.0;
+    var height: f64 = 0.0;
+    var font_size: f64 = 16.0; // default browser font size
+    var font_family: []const u8 = "sans-serif";
+    var has_explicit_size = false;
 
     if (self.getStyle(page)) |style| {
         const decl = style.asCSSStyleDeclaration();
-        width = CSS.parseDimension(decl.getPropertyValue("width", page)) orelse 5.0;
-        height = CSS.parseDimension(decl.getPropertyValue("height", page)) orelse 5.0;
+        if (CSS.parseDimension(decl.getPropertyValue("width", page))) |w| {
+            width = w;
+            has_explicit_size = true;
+        }
+        if (CSS.parseDimension(decl.getPropertyValue("height", page))) |h| {
+            height = h;
+            has_explicit_size = true;
+        }
+        if (CSS.parseDimension(decl.getPropertyValue("font-size", page))) |fs| {
+            font_size = fs;
+        }
+        const ff = decl.getPropertyValue("font-family", page);
+        if (ff.len > 0) font_family = ff;
     }
 
-    if (width == 5.0 or height == 5.0) {
+    if (!has_explicit_size) {
         const tag = self.getTag();
 
-        // Root containers get large default size to contain descendant positions.
-        // With calculateDocumentPosition using linear depth scaling (100px per level),
-        // even very deep trees (100 levels) stay within 10,000px.
-        // 100M pixels is plausible for very long documents.
         if (tag == .html or tag == .body) {
-            if (width == 5.0) width = 1920.0;
-            if (height == 5.0) height = 100_000_000.0;
+            if (width == 0.0) width = 1920.0;
+            if (height == 0.0) height = 100_000_000.0;
         } else if (tag == .img or tag == .iframe) {
             if (self.getAttributeSafe(comptime .wrap("width"))) |w| {
-                width = std.fmt.parseFloat(f64, w) catch width;
-            }
+                width = std.fmt.parseFloat(f64, w) catch 300.0;
+            } else if (width == 0.0) width = 300.0;
             if (self.getAttributeSafe(comptime .wrap("height"))) |h| {
-                height = std.fmt.parseFloat(f64, h) catch height;
+                height = std.fmt.parseFloat(f64, h) catch 150.0;
+            } else if (height == 0.0) height = 150.0;
+        } else {
+            // Estimate text-based dimensions from child text content
+            const text_len = self.asNode().getChildTextLength();
+            if (text_len > 0) {
+                // Different font families have different average character widths
+                // relative to font size. These ratios approximate Chrome's rendering.
+                const char_width_ratio = estimateFontWidthRatio(font_family);
+                width = @as(f64, @floatFromInt(text_len)) * font_size * char_width_ratio;
+                height = font_size * 1.2; // line-height ~1.2x font size
+            } else {
+                // Empty inline elements have zero dimensions; block elements
+                // take full width.
+                const is_inline = tag == .span or tag == .anchor or tag == .em or
+                    tag == .strong or tag == .b or tag == .i or
+                    tag == .code or tag == .sub or tag == .sup;
+                if (is_inline) {
+                    width = 0.0;
+                    height = 0.0;
+                } else {
+                    // Block elements default to parent width
+                    width = 1920.0;
+                    height = 0.0;
+                }
             }
         }
     }
 
     return .{ .width = width, .height = height };
+}
+
+/// Estimate average character width as a ratio of font-size for a given font family.
+/// These ratios approximate real Chrome rendering for common fingerprinting fonts.
+fn estimateFontWidthRatio(font_family: []const u8) f64 {
+    // Check for common font families (case-insensitive first match)
+    if (containsFont(font_family, "monospace") or containsFont(font_family, "Courier")) return 0.602;
+    if (containsFont(font_family, "serif") and !containsFont(font_family, "sans")) return 0.528;
+    if (containsFont(font_family, "Georgia")) return 0.551;
+    if (containsFont(font_family, "Times")) return 0.519;
+    if (containsFont(font_family, "Verdana")) return 0.578;
+    if (containsFont(font_family, "Helvetica") or containsFont(font_family, "Arial")) return 0.528;
+    if (containsFont(font_family, "Trebuchet")) return 0.505;
+    if (containsFont(font_family, "Impact")) return 0.432;
+    // Default sans-serif
+    return 0.528;
+}
+
+fn containsFont(family: []const u8, needle: []const u8) bool {
+    if (family.len < needle.len) return false;
+    var i: usize = 0;
+    while (i + needle.len <= family.len) : (i += 1) {
+        if (std.ascii.eqlIgnoreCase(family[i .. i + needle.len], needle)) return true;
+    }
+    return false;
 }
 
 pub fn getClientWidth(self: *Element, page: *Page) f64 {

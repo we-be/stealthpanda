@@ -365,6 +365,8 @@ pub fn createContext(self: *Env, page: *Page, params: ContextParams) !*Context {
         defer stealth_ls.deinit();
         stealth_ls.local.eval(@import("../../cdp/domains/stealth_inject.zig").script, null) catch {};
         stealth_ls.local.eval(@import("../../cdp/chrome_globals.zig").script, null) catch {};
+        // Post-globals patches: fix APIs created by chrome_globals that need methods
+        stealth_ls.local.eval(@import("../../cdp/domains/stealth_post_globals.zig").script, null) catch {};
     }
 
     return context;

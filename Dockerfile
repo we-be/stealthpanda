@@ -29,7 +29,9 @@ COPY . .
 RUN zig build -Doptimize=ReleaseFast -Dprebuilt_v8_path=/v8/libc_v8.a
 
 FROM ubuntu:24.04
-RUN apt-get update && apt-get install -y libglib2.0-0 ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libglib2.0-0 ca-certificates tzdata && rm -rf /var/lib/apt/lists/*
+ENV TZ=America/New_York
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 COPY --from=builder /stealthpanda/zig-out/bin/lightpanda /usr/local/bin/lightpanda
 
 EXPOSE 9222
