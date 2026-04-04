@@ -138,41 +138,7 @@ pub const script: [:0]const u8 =
     \\      return origST.apply(null, arguments);
     \\    };
     \\  })();
-    \\  // Track canvas API usage in detail
-    \\  try {
-    \\    var _origGetCtx = HTMLCanvasElement.prototype.getContext;
-    \\    HTMLCanvasElement.prototype.getContext = function(type) {
-    \\      console.warn('IF_CANVAS: getContext ' + type + ' w=' + this.width + ' h=' + this.height);
-    \\      var ctx = _origGetCtx.apply(this, arguments);
-    \\      if (ctx && type === '2d') {
-    \\        // Track key 2d drawing operations
-    \\        var _drawOps = 0;
-    \\        var origFillText = ctx.fillText;
-    \\        if (origFillText) {
-    \\          ctx.fillText = function(text, x, y) {
-    \\            _drawOps++;
-    \\            if (_drawOps <= 5) console.warn('IF_CANVAS: fillText "' + String(text).substring(0,20) + '" x=' + x + ' y=' + y + ' font=' + this.font);
-    \\            return origFillText.apply(this, arguments);
-    \\          };
-    \\        }
-    \\        var origGetImageData = ctx.getImageData;
-    \\        if (origGetImageData) {
-    \\          ctx.getImageData = function(x, y, w, h) {
-    \\            var data = origGetImageData.apply(this, arguments);
-    \\            var nonZero = 0;
-    \\            if (data && data.data) {
-    \\              for (var i = 0; i < Math.min(data.data.length, 400); i++) {
-    \\                if (data.data[i] !== 0) nonZero++;
-    \\              }
-    \\            }
-    \\            console.warn('IF_CANVAS: getImageData ' + w + 'x' + h + ' nonZero=' + nonZero + '/' + Math.min(data.data.length, 400));
-    \\            return data;
-    \\          };
-    \\        }
-    \\      }
-    \\      return ctx;
-    \\    };
-    \\  } catch(e) {}
+    \\  // Canvas tracking removed — confirmed working via test_canvas.html
     \\  // Suppress overrunBegin (our POW slightly slower than real Workers)
     \\  try {
     \\    var _pmOrig = window.parent.postMessage.bind(window.parent);
