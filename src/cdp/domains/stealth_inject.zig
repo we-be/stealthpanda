@@ -285,20 +285,26 @@ pub const script: [:0]const u8 =
     \\  window.addEventListener('error', function(e) {
     \\    console.warn('IF_ERR: ' + (e.message || '') + ' at ' + (e.filename || '').slice(-40) + ':' + e.lineno);
     \\  });
-    \\  // Track property accesses on document that might differ from Chrome
-    \\  var _docAccess = {};
-    \\  var _docAccessCount = 0;
-    \\  ['cookie','referrer','readyState','domain','title','characterSet','contentType',
-    \\   'compatMode','documentMode','designMode','dir','hidden','visibilityState',
-    \\   'fullscreenEnabled','pictureInPictureEnabled','wasDiscarded','lastModified',
-    \\   'baseURI','URL','documentURI'].forEach(function(prop) {
-    \\    var origVal = document[prop];
-    \\    try {
-    \\      Object.defineProperty(document, prop, {
-    \\        get: function() { if (!_docAccess[prop]) { _docAccess[prop] = 1; _docAccessCount++; if (_docAccessCount <= 15) console.warn('DOC_GET: ' + prop + '=' + String(origVal).substring(0,60)); } return origVal; },
-    \\        configurable: true, enumerable: true
-    \\      });
-    \\    } catch(e) {}
+    \\  // Document property stubs for iframe — applied early (before VM runs)
+    \\  // These must be defined BEFORE the Chrome property stubs IIFE at the end
+    \\  // because the IIFE checks if(!(k in document)) which would skip if already set.
+    \\  var _iframeDocStubs = {
+    \\    pictureInPictureEnabled: true, pictureInPictureElement: null,
+    \\    fullscreenEnabled: true, fullscreen: false, fullscreenElement: null,
+    \\    wasDiscarded: false, designMode: 'off',
+    \\    onfullscreenchange: null, onfullscreenerror: null,
+    \\    onpointerlockchange: null, onpointerlockerror: null,
+    \\    onvisibilitychange: null, onselectstart: null, onselectionchange: null,
+    \\    onfreeze: null, onresume: null, onprerenderingchange: null,
+    \\    fragmentDirective: {},
+    \\    featurePolicy: {allowsFeature:function(){return true},features:function(){return[]},allowedFeatures:function(){return[]}},
+    \\    // Legacy HTMLDocument color properties (Chrome returns empty string)
+    \\    alinkColor: '', bgColor: '', fgColor: '', linkColor: '', vlinkColor: ''
+    \\  };
+    \\  Object.keys(_iframeDocStubs).forEach(function(k) {
+    \\    if (!(k in document)) {
+    \\      try { Object.defineProperty(document, k, {value: _iframeDocStubs[k], writable: true, configurable: true, enumerable: true}); } catch(e) {}
+    \\    }
     \\  });
     \\  window.addEventListener('error', function(e) {
     \\    if (_errCount <= 30) console.warn('IF_ERR: ' + (e.message||'') + ' at ' + (e.filename||'').slice(-30) + ':' + e.lineno);
