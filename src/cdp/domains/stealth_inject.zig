@@ -102,71 +102,27 @@ pub const script: [:0]const u8 =
     \\    }
     \\  });
     \\}
-    // Iframe debugging for Turnstile VM
+    // Minimal iframe instrumentation
     \\if (window !== window.top) {
-    \\  // Global error handler
-    \\  window.addEventListener('error', function(e) {
-    \\    console.warn('IF_ERR: ' + (e.message || '') + ' at ' + (e.filename || '').slice(-30) + ':' + (e.lineno || 0));
-    \\  });
-    \\  // Unhandled promise rejection handler
-    \\  window.addEventListener('unhandledrejection', function(e) {
-    \\    var r = e.reason || {};
-    \\    console.warn('IF_REJ: ' + (r.message || r.toString ? r.toString() : String(r)).substring(0, 80));
-    \\  });
-    \\  // Track postMessage received BY iframe FROM parent (non-invasive)
-    \\  window.addEventListener('message', function(e) {
-    \\    if (e.data && typeof e.data === 'object' && e.data.event) {
-    \\      console.warn('IF_PM_IN: ' + e.data.event);
-    \\    }
-    \\  });
-    \\  // Track large atob decodes (VM processes 365KB base64 response)
-    \\  var _origAtob = window.atob;
-    \\  var _atobCount = 0;
-    \\  window.atob = function(s) {
-    \\    _atobCount++;
-    \\    var result = _origAtob.apply(window, arguments);
-    \\    if (s && s.length > 1000) {
-    \\      // Check decoded output for correctness
-    \\      var highChars = 0;
-    \\      var maxCode = 0;
-    \\      for (var i = 0; i < Math.min(result.length, 1000); i++) {
-    \\        var c = result.charCodeAt(i);
-    \\        if (c > 127) highChars++;
-    \\        if (c > maxCode) maxCode = c;
-    \\      }
-    \\      console.warn('IF_ATOB: in=' + s.length + ' out=' + result.length + ' hi=' + highChars + ' max=' + maxCode);
-    \\    }
-    \\    return result;
-    \\  };
-    \\  // Track property accesses that return undefined on common objects
-    \\  var _checkedProps = {};
-    \\  var _propCheckTimer = setTimeout(function reportProps() {
-    \\    var keys = Object.keys(_checkedProps);
-    \\    if (keys.length > 0) {
-    \\      console.warn('IF_UNDEF: ' + keys.slice(0,20).join(','));
-    \\      _checkedProps = {};
-    \\    }
-    \\    _propCheckTimer = setTimeout(reportProps, 3000);
-    \\  }, 3000);
-    \\  // Override property access on document to catch missing APIs
+    \\  // Suppress overrunBegin — our POW is slightly slower than real Workers
+    \\  var _origPM2 = window.parent.postMessage;
     \\  try {
-    \\    var _origDocGEBI = document.getElementById;
-    \\    document.getElementById = function(id) {
-    \\      var r = _origDocGEBI.apply(document, arguments);
-    \\      if (!r && id) _checkedProps['gEBI:' + id] = 1;
-    \\      return r;
+    \\    var _pmBound = _origPM2.bind(window.parent);
+    \\    window.parent.postMessage = function(msg, origin) {
+    \\      if (msg && typeof msg === 'object' && msg.event === 'overrunBegin') return;
+    \\      return _pmBound(msg, origin);
     \\    };
     \\  } catch(e) {}
-    \\  // Track ALL XHR requests from iframe
+    \\  // Accelerate VM 500ms processing timers to 50ms
+    \\  var _origST = window.setTimeout;
+    \\  window.setTimeout = function(fn, ms) {
+    \\    if (ms >= 490 && ms <= 510) return _origST.call(window, fn, 50);
+    \\    return _origST.apply(window, arguments);
+    \\  };
+    \\  // XHR tracking
     \\  var _origXHRSend = XMLHttpRequest.prototype.send;
     \\  var _origXHROpen = XMLHttpRequest.prototype.open;
-    \\  XMLHttpRequest.prototype.open = function(m, u) { this._stUrl = u; this._stMethod = m; return _origXHROpen.apply(this, arguments); };
-    \\  var _origSetReqHdr = XMLHttpRequest.prototype.setRequestHeader;
-    \\  var _xhrHeaders = {};
-    \\  XMLHttpRequest.prototype.setRequestHeader = function(name, val) {
-    \\    _xhrHeaders[name] = val;
-    \\    return _origSetReqHdr.apply(this, arguments);
-    \\  };
+    \\  XMLHttpRequest.prototype.open = function(m, u) { this._stUrl = u; return _origXHROpen.apply(this, arguments); };
     \\  var _xhrFlowCount = 0;
     \\  var _flowStartTime = Date.now();
     \\  XMLHttpRequest.prototype.send = function(body) {
@@ -174,58 +130,16 @@ pub const script: [:0]const u8 =
     \\      _xhrFlowCount++;
     \\      var flowNum = _xhrFlowCount;
     \\      var elapsed = Date.now() - _flowStartTime;
-    \\      var hdrs = JSON.stringify(_xhrHeaders);
-    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + body.length + ' hdrs=' + hdrs);
-    \\      _xhrHeaders = {};
-    \\      console.warn('IF_BODY_URL: ' + (this._stUrl || '').slice(-60));
+    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + body.length);
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
     \\        var elapsed2 = Date.now() - _flowStartTime;
-    \\        // Check response headers for Set-Cookie
-    \\        var hdrs = xhr.getAllResponseHeaders() || '';
     \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length);
-    \\        if (flowNum >= 2) {
-    \\          console.warn('IF_RSP_HDRS: ' + hdrs.substring(0,100));
-    \\          console.warn('IF_RSP_BODY: ' + rsp);
-    \\        }
     \\      });
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
     \\  };
-    \\  // Accelerate 550ms VM timers
-    \\  var _origST = window.setTimeout;
-    \\  window.setTimeout = function(fn, ms) {
-    \\    if (ms === 550) return _origST.call(window, fn, 50);
-    \\    return _origST.apply(window, arguments);
-    \\  };
-    \\  // Intercept postMessage to suppress overrunBegin/overrunEnd
-    \\  // The POW is too slow on main thread, suppress the timeout signal
-    \\  var _origPM = window.parent.postMessage.bind(window.parent);
-    \\  try {
-    \\    window.parent.postMessage = function(msg, origin) {
-    \\      if (msg && typeof msg === 'object' && msg.event) {
-    \\        if (msg.event === 'overrunBegin' || msg.event === 'overrunEnd') {
-    \\          console.warn('IF_SUPPRESS: ' + msg.event);
-    \\          return;
-    \\        }
-    \\      }
-    \\      return _origPM(msg, origin);
-    \\    };
-    \\  } catch(e) { console.warn('IF_PM_WRAP_ERR: ' + e.message); }
-    \\  // Track crypto.subtle usage
-    \\  if (window.crypto && window.crypto.subtle) {
-    \\    var _cs = window.crypto.subtle;
-    \\    ['verify','sign','importKey','digest','encrypt','decrypt','deriveKey','deriveBits','generateKey','exportKey'].forEach(function(m) {
-    \\      var _orig = _cs[m];
-    \\      if (_orig) {
-    \\        _cs[m] = function() {
-    \\          console.warn('IF_CRYPTO: ' + m + ' args=' + arguments.length);
-    \\          return _orig.apply(_cs, arguments);
-    \\        };
-    \\      }
-    \\    });
-    \\  }
     \\}
     \\
     // Fix performance.timing — all timestamps should be realistic Unix timestamps
@@ -650,13 +564,14 @@ pub const script: [:0]const u8 =
     \\          removeEventListener: function() {}, close: function() {},
     \\          importScripts: function() {},
     \\          crypto: window.crypto, performance: window.performance,
+    \\          // Keep Worker setTimeout natural — don't accelerate
     \\          setTimeout: setTimeout,
     \\          Math: Math, Uint8Array: Uint8Array, Uint32Array: Uint32Array,
     \\          Int32Array: Int32Array, Float64Array: Float64Array,
     \\          ArrayBuffer: ArrayBuffer, DataView: DataView,
     \\          TextEncoder: TextEncoder, TextDecoder: TextDecoder,
     \\          atob: window.atob, btoa: window.btoa,
-    \\          console: console, setTimeout: setTimeout, setInterval: setInterval,
+    \\          console: console, setInterval: setInterval,
     \\          clearTimeout: clearTimeout, clearInterval: clearInterval };
     \\          scope.self = scope; scope.globalThis = scope;
     \\          scope.onmessage = null; scope.onerror = null;
