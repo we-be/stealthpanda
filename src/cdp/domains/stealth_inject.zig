@@ -278,7 +278,7 @@ pub const script: [:0]const u8 =
     \\});
     // Override getBattery to return a proper BatteryManager stub
     // Chrome always resolves getBattery() — rejection is a detection vector
-    \\navigator.getBattery = function() {
+    \\navigator.getBattery = function getBattery() {
     \\  return Promise.resolve({
     \\    charging: true, chargingTime: 0, dischargingTime: Infinity, level: 1,
     \\    addEventListener: function() {}, removeEventListener: function() {},
@@ -401,11 +401,21 @@ pub const script: [:0]const u8 =
     \\  };
     \\}
     \\
-    // makeNative — just a no-op now, Function.prototype.toString not patched
-    // Patching toString was suspicious — CF may detect non-standard toString behavior
-    \\function makeNative() {}
-    \\try { Object.defineProperty(window, '_makeNative', {value: makeNative, enumerable: false, configurable: true, writable: true}); } catch(e) {}
-    \\try { Object.defineProperty(window, 'makeNative', {value: makeNative, enumerable: false, configurable: true, writable: true}); } catch(e) {}
+    // Make our polyfilled functions appear as native code
+    // CF's Turnstile API checks Worker.toString(), Blob.toString(), etc.
+    // If they show JS source instead of [native code], CF classifies us as non-standard
+    \\var _origToString = Function.prototype.toString;
+    \\var _nativeMap = new WeakMap();
+    \\function makeNative(fn, name) {
+    \\  _nativeMap.set(fn, 'function ' + (name || fn.name || '') + '() { [native code] }');
+    \\}
+    \\Function.prototype.toString = function() {
+    \\  if (_nativeMap.has(this)) return _nativeMap.get(this);
+    \\  return _origToString.call(this);
+    \\};
+    \\makeNative(Function.prototype.toString, 'toString');
+    // Don't expose makeNative on window — it's a detection vector
+    \\var _mn = makeNative;
     \\
     // Block unsupported_browser reject (capture phase, before Turnstile handler)
     \\window.addEventListener('message', function(e) {
@@ -904,6 +914,8 @@ pub const script: [:0]const u8 =
     // Make Blob and Worker wrappers look native
     \\if (typeof Blob === 'function') makeNative(Blob, 'Blob');
     \\if (typeof Worker === 'function') makeNative(Worker, 'Worker');
+    \\if (navigator.getBattery) makeNative(navigator.getBattery, 'getBattery');
+    \\if (typeof URL.createObjectURL === 'function' && URL.createObjectURL.toString().indexOf('native') < 0) makeNative(URL.createObjectURL, 'createObjectURL');
     // Auto-solve Turnstile interactive mode by clicking inside challenge iframes
     \\(function() {
     \\  // Listen for interactiveBegin from challenge iframes and auto-click
