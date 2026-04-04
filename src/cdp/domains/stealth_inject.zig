@@ -80,6 +80,42 @@ pub const script: [:0]const u8 =
     \\}
     \\
     \\
+    // navigator.userAgentData (Chrome 90+ Client Hints API)
+    \\if (!navigator.userAgentData) {
+    \\  var _brands = [
+    \\    {brand: 'Chromium', version: '131'},
+    \\    {brand: 'Google Chrome', version: '131'},
+    \\    {brand: 'Not_A Brand', version: '24'}
+    \\  ];
+    \\  Object.defineProperty(navigator, 'userAgentData', {
+    \\    value: {
+    \\      brands: _brands,
+    \\      mobile: false,
+    \\      platform: 'Linux',
+    \\      getHighEntropyValues: function(hints) {
+    \\        return Promise.resolve({
+    \\          architecture: 'x86',
+    \\          bitness: '64',
+    \\          brands: _brands,
+    \\          fullVersionList: [
+    \\            {brand: 'Chromium', version: '131.0.6778.204'},
+    \\            {brand: 'Google Chrome', version: '131.0.6778.204'},
+    \\            {brand: 'Not_A Brand', version: '24.0.0.0'}
+    \\          ],
+    \\          mobile: false,
+    \\          model: '',
+    \\          platform: 'Linux',
+    \\          platformVersion: '6.8.0',
+    \\          uaFullVersion: '131.0.6778.204',
+    \\          wow64: false
+    \\        });
+    \\      },
+    \\      toJSON: function() { return {brands: _brands, mobile: false, platform: 'Linux'}; }
+    \\    },
+    \\    configurable: true
+    \\  });
+    \\}
+    \\
     // Lock navigator.webdriver to false
     \\Object.defineProperty(navigator, 'webdriver', {
     \\  get: () => false, configurable: false, enumerable: true
