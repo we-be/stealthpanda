@@ -125,23 +125,51 @@ pub const script: [:0]const u8 =
     \\      return _origParFetch.apply(this, arguments);
     \\    };
     \\  }
-    \\  // Patch Window.prototype.postMessage to intercept extraParams messages
-    \\  // and inject apiJsResourceTiming if missing. This catches ALL postMessage
-    \\  // calls to any window (including iframe contentWindows).
+    \\  // Intercept ALL postMessage calls including to iframe contentWindows.
+    \\  // The api.js calls Le.contentWindow.postMessage() which goes through
+    \\  // the postMessage function on the iframe's Window object.
+    \\  // We need to intercept at the prototype level AND wrap contentWindow.
     \\  try {
-    \\    var _origWinPM = Window.prototype.postMessage;
-    \\    Window.prototype.postMessage = function(msg, targetOrigin) {
+    \\    // Wrap HTMLIFrameElement.contentWindow to intercept postMessage on iframes
+    \\    var _origCWDesc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentWindow');
+    \\    if (_origCWDesc && _origCWDesc.get) {
+    \\      var _origCWGet = _origCWDesc.get;
+    \\      Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
+    \\        get: function() {
+    \\          var cw = _origCWGet.call(this);
+    \\          if (cw && !cw._spWrapped) {
+    \\            try {
+    \\              var origPM = cw.postMessage;
+    \\              cw.postMessage = function(msg, origin) {
+    \\                if (msg && typeof msg === 'object' && msg.event === 'extraParams' && msg.source === 'cloudflare-challenge') {
+    \\                  _fixExtraParams(msg);
+    \\                }
+    \\                return origPM.call(cw, msg, origin);
+    \\              };
+    \\              cw._spWrapped = true;
+    \\            } catch(ex) {} // cross-origin may throw
+    \\          }
+    \\          return cw;
+    \\        },
+    \\        configurable: true
+    \\      });
+    \\    }
+    \\  } catch(e) {}
+    \\  function _fixExtraParams(msg) {
     \\      if (msg && typeof msg === 'object' && msg.event === 'extraParams' && msg.source === 'cloudflare-challenge') {
-    \\        // Fix wPr widget position to be within viewport bounds
-    \\        if (msg.wPr && msg.wPr.pi && msg.wPr.pi.wp) {
-    \\          var parts = msg.wPr.pi.wp.split('|');
-    \\          var top = parseFloat(parts[0]) || 0;
-    \\          var right = parseFloat(parts[1]) || 0;
+    \\        // Fix wPr widget position to match Chrome's CSS layout
+    \\        // Chrome layout: Turnstile widget (300x65px) is typically in
+    \\        // the content flow. getBoundingClientRect().top|right values
+    \\        // depend on real CSS layout which we don't have.
+    \\        if (msg.wPr && msg.wPr.pi) {
     \\          var iw = msg.wPr['w.iW'] || window.innerWidth || 800;
-    \\          // Cap: top should be reasonable, right should be within viewport
-    \\          if (top > 1200) top = 600 + Math.random() * 200;
-    \\          if (right > iw) right = iw * 0.8 + Math.random() * (iw * 0.15);
-    \\          msg.wPr.pi.wp = top.toFixed(1) + '|' + right.toFixed(1);
+    \\          // Compute realistic position: widget centered-ish, below some content
+    \\          // Chrome peet.ws: top=126.78125, right=792 (widget near right edge)
+    \\          // The right value = left + width, Chrome uses full-width containers
+    \\          var tl = msg.wPr.pi.tL || 15; // total element count
+    \\          var wTop = 50 + tl * 4 + Math.random() * 30; // scale with content
+    \\          var wRight = iw - 4 - Math.random() * 10; // near right edge (full-width parent)
+    \\          msg.wPr.pi.wp = wTop.toFixed(5) + '|' + wRight.toFixed(0);
     \\        }
     \\        if (!msg.apiJsResourceTiming && msg.au) {
     \\          // Cross-origin resource timing: Chrome returns zeros for timing/size
@@ -171,9 +199,7 @@ pub const script: [:0]const u8 =
     \\          console.warn('AJRT_INJECTED');
     \\        }
     \\      }
-    \\      return _origWinPM.apply(this, arguments);
-    \\    };
-    \\  } catch(e) {}
+    \\  }
     \\}
     // Iframe instrumentation
     \\if (window !== window.top) {
@@ -191,12 +217,55 @@ pub const script: [:0]const u8 =
     \\        if (e.data.scs) console.warn('EXTRA_SCS: ' + JSON.stringify(e.data.scs).substring(0,120));
     \\        if (e.data.au) console.warn('EXTRA_AU: ' + JSON.stringify(e.data.au).substring(0,120));
     \\        if (e.data.wPr) {
+    \\          // Fix widget position in wPr before Turnstile JS processes it
+    \\          try {
+    \\            if (e.data.wPr.pi) {
+    \\              var oldWp = e.data.wPr.pi.wp;
+    \\              var iw = e.data.wPr['w.iW'] || 800;
+    \\              var tl = e.data.wPr.pi.tL || 15;
+    \\              var wTop = 50 + tl * 4 + Math.random() * 30;
+    \\              var wRight = iw - 4 - Math.random() * 10;
+    \\              e.data.wPr.pi.wp = wTop.toFixed(5) + '|' + wRight.toFixed(0);
+    \\              console.warn('WP_FIX: ' + oldWp + ' -> ' + e.data.wPr.pi.wp);
+    \\            }
+    \\          } catch(ex) { console.warn('WP_FIX_ERR: ' + ex.message); }
     \\          try { console.warn('EXTRA_WPR: ' + JSON.stringify(e.data.wPr)); } catch(ex) {}
     \\        }
     \\        if (e.data.apiJsResourceTiming) {
-    \\          try { console.warn('EXTRA_AJRT: ' + JSON.stringify(e.data.apiJsResourceTiming).substring(0,300)); } catch(ex) {}
+    \\          // Fix: ensure cross-origin format (zeros for timing/size)
+    \\          var rt = e.data.apiJsResourceTiming;
+    \\          if (rt.nextHopProtocol && rt.nextHopProtocol !== '') {
+    \\            rt.nextHopProtocol = '';
+    \\            rt.domainLookupStart = 0; rt.domainLookupEnd = 0;
+    \\            rt.connectStart = 0; rt.connectEnd = 0; rt.secureConnectionStart = 0;
+    \\            rt.requestStart = 0; rt.responseStart = 0;
+    \\            rt.transferSize = 0; rt.encodedBodySize = 0; rt.decodedBodySize = 0;
+    \\            rt.responseStatus = 0;
+    \\            if (!rt.deliveryType) rt.deliveryType = '';
+    \\            if (!rt.renderBlockingStatus) rt.renderBlockingStatus = 'non-blocking';
+    \\            if (!rt.contentEncoding) rt.contentEncoding = '';
+    \\          }
+    \\          try { console.warn('EXTRA_AJRT: ' + JSON.stringify(rt).substring(0,200)); } catch(ex) {}
     \\        } else {
-    \\          console.warn('EXTRA_AJRT: undefined (parent-side injection should fix this)');
+    \\          // Inject AJRT if completely missing
+    \\          if (e.data.au) {
+    \\            var st = performance.now() - Math.random() * 50 - 80;
+    \\            if (st < 50) st = 50 + Math.random() * 100;
+    \\            var dur = Math.random() * 40 + 60;
+    \\            e.data.apiJsResourceTiming = {
+    \\              name: e.data.au, entryType: 'resource', startTime: st,
+    \\              duration: dur, initiatorType: 'script',
+    \\              deliveryType: '', nextHopProtocol: '',
+    \\              renderBlockingStatus: 'non-blocking', contentEncoding: '',
+    \\              workerStart: 0, redirectStart: 0, redirectEnd: 0, fetchStart: st,
+    \\              domainLookupStart: 0, domainLookupEnd: 0,
+    \\              connectStart: 0, connectEnd: 0, secureConnectionStart: 0,
+    \\              requestStart: 0, responseStart: 0, responseEnd: st + dur,
+    \\              transferSize: 0, encodedBodySize: 0, decodedBodySize: 0,
+    \\              responseStatus: 0, serverTiming: []
+    \\            };
+    \\          }
+    \\          console.warn('EXTRA_AJRT: INJECTED at iframe level');
     \\        }
     \\        console.warn('EXTRA_TIMES: init=' + e.data.timeInitMs + ' params=' + e.data.timeParamsMs + ' render=' + e.data.timeRenderMs + ' extra=' + e.data.timeExtraParamsMs);
     \\      } catch(ex) { console.warn('EXTRA_ERR: ' + ex.message); }
