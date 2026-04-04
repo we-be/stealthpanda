@@ -35,8 +35,8 @@ fn highResTimestamp() u64 {
         // Occasionally advance by 10μs or 15μs instead of always 5μs
         const jitter_seed = nanos ^ (_last_timestamp >> 3);
         const extra = if (jitter_seed & 0x7 == 0) @as(u64, 10000) // ~12.5% chance of +10μs
-        else if (jitter_seed & 0xF == 0) @as(u64, 15000) // ~6.25% chance of +15μs
-        else @as(u64, 5000); // ~81% chance of +5μs
+            else if (jitter_seed & 0xF == 0) @as(u64, 15000) // ~6.25% chance of +15μs
+            else @as(u64, 5000); // ~81% chance of +5μs
         rounded = _last_timestamp + extra;
     }
     _last_timestamp = rounded;
