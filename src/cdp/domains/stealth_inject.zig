@@ -112,24 +112,19 @@ pub const script: [:0]const u8 =
     \\      }
     \\    }
     \\  });
-    \\  // Debug: check PerformanceObserver and currentScript on the parent page
-    \\  // The api.js ta() function needs: typeof PerformanceObserver == 'function' && Ue() != null
-    \\  var _origGetByTypePar = performance.getEntriesByType.bind(performance);
-    \\  // After the Turnstile script loads, check what ta() would see
-    \\  console.warn('PAR_EARLY: readyState=' + document.readyState + ' PO=' + typeof PerformanceObserver + ' PRT=' + typeof PerformanceResourceTiming);
-    \\  document.addEventListener('DOMContentLoaded', function() {
-    \\    try {
-    \\      var scripts = document.querySelectorAll('script[src*="challenges.cloudflare.com"]');
-    \\      var found = scripts.length;
-    \\      var resEntries = _origGetByTypePar('resource');
-    \\      var cfEntries = [];
-    \\      for (var i = 0; i < resEntries.length; i++) {
-    \\        if (resEntries[i].name && resEntries[i].name.indexOf('cloudflare') >= 0) cfEntries.push(resEntries[i].name);
+    \\  // Track JSD/orchestrate fetch requests
+    \\  var _origParFetch = window.fetch;
+    \\  if (_origParFetch) {
+    \\    window.fetch = function(input, init) {
+    \\      var url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+    \\      if (url.indexOf('cdn-cgi') >= 0 || url.indexOf('challenge') >= 0) {
+    \\        var method = (init && init.method) || 'GET';
+    \\        var bodyLen = (init && init.body) ? init.body.length || 0 : 0;
+    \\        console.warn('PAR_FETCH: ' + method + ' ' + url.split('/').slice(-3).join('/') + ' body=' + bodyLen);
     \\      }
-    \\      console.warn('PAR_DIAG: cfScripts=' + found + ' resTotal=' + resEntries.length + ' cfRes=' + cfEntries.length + ' PO=' + typeof PerformanceObserver);
-    \\      if (cfEntries.length > 0) console.warn('PAR_DIAG_RES: ' + cfEntries[0].substring(0,80));
-    \\    } catch(e) { console.warn('PAR_DIAG_ERR: ' + e.message); }
-    \\  });
+    \\      return _origParFetch.apply(this, arguments);
+    \\    };
+    \\  }
     \\  // Patch Window.prototype.postMessage to intercept extraParams messages
     \\  // and inject apiJsResourceTiming if missing. This catches ALL postMessage
     \\  // calls to any window (including iframe contentWindows).
@@ -370,11 +365,6 @@ pub const script: [:0]const u8 =
     \\    Object.defineProperty(PerformanceResourceTiming.prototype, Symbol.toStringTag, {value: 'PerformanceResourceTiming', configurable: true});
     \\  }
     \\  var _PRT = null; // Don't set prototype — just use Symbol.hasInstance
-    \\  // Debug: verify instanceof works
-    \\  try {
-    \\    var _testEntry = Object.create(_PRT.prototype);
-    \\    console.warn('PRT_TEST: instanceof=' + (_testEntry instanceof _PRT) + ' hasInstance=' + !!_PRT[Symbol.hasInstance]);
-    \\  } catch(e) { console.warn('PRT_TEST_ERR: ' + e.message); }
     \\  function makeResEntry(url, startOff, dur, size, initiator) {
     \\    var st = performance.now() - startOff;
     \\    if (st < 0) st = Math.random() * 50 + 10;
