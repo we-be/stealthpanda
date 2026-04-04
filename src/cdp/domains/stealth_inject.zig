@@ -1137,6 +1137,7 @@ pub const script: [:0]const u8 =
     \\      onmessage: null, onerror: null,
     \\      _listeners: {},
     \\      postMessage: function(data) {
+    \\        console.warn('WK#' + _wid + '_PM: code=' + (_code ? _code.length : 'null') + ' data=' + (typeof data === 'string' ? data.substring(0,60) : JSON.stringify(data).substring(0,60)));
     \\        if (!_code) {
     \\          _pmRetries++;
     \\          if (_pmRetries <= 5) {
@@ -1171,7 +1172,11 @@ pub const script: [:0]const u8 =
     \\          clearTimeout: clearTimeout, clearInterval: clearInterval };
     \\          scope.self = scope; scope.globalThis = scope;
     \\          scope.onmessage = null; scope.onerror = null;
-    \\          scope.navigator = window.navigator;
+    \\          // Worker scope uses WorkerNavigator which has deviceMemory
+    \\          // even though main thread's navigator doesn't (in headless)
+    \\          scope.navigator = Object.create(window.navigator);
+    \\          scope.navigator.deviceMemory = 8;
+    \\          console.warn('WK_NAV: dm=' + scope.navigator.deviceMemory + ' hc=' + scope.navigator.hardwareConcurrency);
     \\          scope.location = {href: '', origin: '', protocol: 'https:'};
     \\          scope.String = String; scope.Number = Number; scope.Object = Object;
     \\          scope.Array = Array; scope.JSON = JSON; scope.Date = Date;
@@ -1242,8 +1247,15 @@ pub const script: [:0]const u8 =
     \\        }).catch(function() {});
     \\      }
     \\    }
+    \\    // Make worker pass instanceof Worker check
+    \\    try { Object.setPrototypeOf(worker, _origWorker.prototype); } catch(e) {}
+    \\    worker.terminate = function() {};
+    \\    worker.dispatchEvent = function() {};
     \\    return worker;
     \\  };
+    \\  // Preserve Worker.prototype and constructor relationship
+    \\  window.Worker.prototype = _origWorker.prototype;
+    \\  Object.defineProperty(window.Worker, 'name', {value: 'Worker'});
     \\})();
     \\
     // Ensure AudioContext prototype has all expected methods
