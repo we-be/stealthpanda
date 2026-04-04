@@ -32,6 +32,11 @@ const boringssl = struct {
     extern fn SSL_set_enable_ech_grease(ssl: *SSL, enable: c_int) void;
     // Signature algorithms — Chrome 146 doesn't include rsa_pkcs1_sha1
     extern fn SSL_CTX_set1_sigalgs_list(ctx: *SSL_CTX, sigalgs: [*:0]const u8) c_int;
+    // Session cache mode — enables session_ticket extension
+    extern fn SSL_CTX_set_session_cache_mode(ctx: *SSL_CTX, mode: c_int) c_int;
+    // SSL options — control session ticket behavior
+    extern fn SSL_CTX_set_options(ctx: *SSL_CTX, options: c_long) c_long;
+    extern fn SSL_CTX_clear_options(ctx: *SSL_CTX, options: c_long) c_long;
 };
 
 /// SSL context callback — configures BoringSSL to send Chrome-like extensions
@@ -41,6 +46,11 @@ fn sslCtxCallback(_: ?*libcurl.Curl, ssl_ctx: ?*anyopaque, _: ?*anyopaque) callc
     _ = boringssl.SSL_CTX_set1_sigalgs_list(ctx, "ECDSA+SHA256:RSA-PSS+SHA256:RSA+SHA256:" ++
         "ECDSA+SHA384:RSA-PSS+SHA384:RSA+SHA384:" ++
         "RSA-PSS+SHA512:RSA+SHA512");
+    // Enable session tickets — Chrome sends session_ticket (0x0023) even in TLS 1.3
+    // SSL_SESS_CACHE_CLIENT = 1, SSL_SESS_CACHE_SERVER = 2
+    _ = boringssl.SSL_CTX_set_session_cache_mode(ctx, 1);
+    // Clear SSL_OP_NO_TICKET (0x00004000) to ensure session tickets are sent
+    _ = boringssl.SSL_CTX_clear_options(ctx, 0x00004000);
     // Enable GREASE (RFC 8701) — Chrome adds random GREASE values
     boringssl.SSL_CTX_set_grease_enabled(ctx, 1);
     // Enable extension permutation — Chrome randomizes extension order (since ~106)
@@ -116,7 +126,7 @@ fn sslInfoCallback(ssl: *boringssl.SSL, where: c_int, _: c_int) callconv(.c) voi
         // Enable ECH GREASE — adds encrypted_client_hello extension (0xfe0d)
         // Chrome 146 enables this to signal ECH support
         boringssl.SSL_set_enable_ech_grease(ssl, 1);
-        // Use new ALPS codepoint to match Chrome 146 (fe0d → 44cd in our BoringSSL)
+        // Use new ALPS codepoint to match Chrome 146 JA4 exactly
         boringssl.SSL_set_alps_use_new_codepoint(ssl, 1);
         // Add ALPS settings for h2 protocol
         // Chrome sends its H2 SETTINGS via ALPS during the TLS handshake
