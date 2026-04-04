@@ -1126,10 +1126,11 @@ pub const script: [:0]const u8 =
     \\          }
     \\          return;
     \\        }
+    \\        console.warn('WK_PM_IN: ' + (typeof data === 'string' ? data.substring(0,60) : JSON.stringify(data).substring(0,60)));
     \\        try {
     \\          var scope = { postMessage: function(msg) {
-    \\            // Deliver worker→main messages ASYNCHRONOUSLY to match real Worker behavior
-    \\            // Real Workers deliver messages via event loop, not synchronously
+    \\            var msgStr = JSON.stringify(msg).substring(0,80);
+    \\            console.warn('WK_PM_OUT: ' + msgStr);
     \\            setTimeout(function() {
     \\              var ev = {data: msg, isTrusted: true, origin: '', source: null, type: 'message',
     \\                     ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
