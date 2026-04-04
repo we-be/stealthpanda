@@ -273,8 +273,14 @@ pub const script: [:0]const u8 =
     \\      var elapsed = Date.now() - _flowStartTime;
     \\      var urlEnd = (this._stUrl || '').split('/').slice(-2).join('/');
     \\      var bodyStr = (typeof body === 'string') ? body : '';
-    \\      var urlType = (this._stUrl || '').indexOf('chl_api_m') >= 0 ? 'API' : 'FLOW';
+    \\      var fullUrl = this._stUrl || '';
+    \\      var urlType = fullUrl.indexOf('chl_api') >= 0 ? 'API' : 'FLOW';
     \\      console.warn('IF_XHR: ' + urlType + ' f=' + flowNum + ' t=' + elapsed + 'ms len=' + (body ? body.length : 0));
+    \\      if (flowNum <= 8) console.warn('XHR_URL: ' + fullUrl.slice(-50));
+    \\      // For chl_api_m requests, log the body to understand what VM checks fail
+    \\      if (urlType === 'API' && body) {
+    \\        console.warn('API_BODY: f=' + flowNum + ' ' + String(body).substring(0,200));
+    \\      }
     \\      // For initial flow POST, analyze body characteristics
     \\      if (urlType === 'FLOW' && flowNum === 1 && body && body.length > 3000) {
     \\        var chars = {};

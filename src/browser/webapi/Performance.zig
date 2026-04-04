@@ -20,16 +20,24 @@ var _last_timestamp: u64 = 0;
 
 /// Get high-resolution timestamp in nanoseconds.
 /// Chrome on Linux rounds to ~5μs (Spectre mitigation: crossOriginIsolatedCapability).
-/// We match this resolution to avoid fingerprinting. Must always advance between
-/// consecutive calls.
+/// Must always advance between consecutive calls with natural variance.
+/// CF Turnstile Worker probes timer resolution by calling performance.now() 5000 times
+/// and measuring minimum delta — perfectly constant 5μs deltas are a fingerprint.
 fn highResTimestamp() u64 {
     const ts = datetime.timespec();
     const nanos = @as(u64, @intCast(ts.sec)) * 1_000_000_000 + @as(u64, @intCast(ts.nsec));
     // Round to nearest 5 microseconds (5000ns) — matches Chrome Linux
     var rounded = @divTrunc(nanos + 2500, 5000) * 5000;
-    // Ensure strictly monotonic — always advance by at least 5μs
+    // Ensure strictly monotonic with natural jitter.
+    // Real Chrome timers sometimes skip 5μs buckets due to OS scheduling.
+    // Mix in a simple hash of the raw nanos to occasionally skip a bucket.
     if (rounded <= _last_timestamp) {
-        rounded = _last_timestamp + 5000;
+        // Occasionally advance by 10μs or 15μs instead of always 5μs
+        const jitter_seed = nanos ^ (_last_timestamp >> 3);
+        const extra = if (jitter_seed & 0x7 == 0) @as(u64, 10000) // ~12.5% chance of +10μs
+        else if (jitter_seed & 0xF == 0) @as(u64, 15000) // ~6.25% chance of +15μs
+        else @as(u64, 5000); // ~81% chance of +5μs
+        rounded = _last_timestamp + extra;
     }
     _last_timestamp = rounded;
     return rounded;
