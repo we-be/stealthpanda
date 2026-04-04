@@ -174,8 +174,14 @@ pub const script: [:0]const u8 =
     \\      var elapsed = Date.now() - _flowStartTime;
     \\      var urlEnd = (this._stUrl || '').split('/').slice(-2).join('/');
     \\      var bodyStr = (typeof body === 'string') ? body : '';
-    \\      var ra = this['_h_cf-chl-ra'];
-    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + bodyStr.length + ' method=' + this._stMethod + ' ra=' + ra);
+    \\      // Log request details
+    \\      var hiCount = 0, maxChar = 0;
+    \\      for (var ci = 0; ci < bodyStr.length; ci++) {
+    \\        var cc = bodyStr.charCodeAt(ci);
+    \\        if (cc > 127) hiCount++;
+    \\        if (cc > maxChar) maxChar = cc;
+    \\      }
+    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + bodyStr.length + ' hi=' + hiCount + ' max=' + maxChar);
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';

@@ -176,8 +176,8 @@ pub fn getParameter(_: *const WebGLRenderingContext, pname: u32) WebGLParam {
         // String parameters
         0x9245 => .{ .string = "Google Inc. (NVIDIA)" }, // UNMASKED_VENDOR_WEBGL
         0x9246 => .{ .string = "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)" }, // UNMASKED_RENDERER_WEBGL
-        0x1F00 => .{ .string = "WebKit" }, // VENDOR
-        0x1F01 => .{ .string = "WebKit WebGL" }, // RENDERER
+        0x1F00 => .{ .string = "Google Inc." }, // VENDOR (Chrome uses "Google Inc.")
+        0x1F01 => .{ .string = "Google SwiftShader" }, // RENDERER (Chrome software rendering)
         0x1F02 => .{ .string = "WebGL 1.0 (OpenGL ES 2.0 Chromium)" }, // VERSION
         0x8B8C => .{ .string = "WebGL GLSL ES 1.0 (OpenGL ES GLSL ES 1.0 Chromium)" }, // SHADING_LANGUAGE_VERSION
         // Integer parameters
@@ -208,6 +208,10 @@ pub fn getParameter(_: *const WebGLRenderingContext, pname: u32) WebGLParam {
         0x8038 => .{ .int = 0 }, // SAMPLE_COVERAGE_VALUE
         0x80A9 => .{ .int = 4 }, // SAMPLE_BUFFERS
         0x80AA => .{ .int = 4 }, // SAMPLES
+        0x0D3D => .{ .int = 32767 }, // MAX_VIEWPORT_DIMS (simplified to single value; real returns Int32Array)
+        0x0C10 => .{ .int = 0 }, // SCISSOR_BOX (x)
+        0x0BA0 => .{ .int = 0 }, // PACK_ALIGNMENT
+        0x0CF5 => .{ .int = 4 }, // UNPACK_ALIGNMENT
         else => .null_val,
     };
 }
