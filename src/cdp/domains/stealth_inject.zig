@@ -1172,11 +1172,28 @@ pub const script: [:0]const u8 =
     \\          clearTimeout: clearTimeout, clearInterval: clearInterval };
     \\          scope.self = scope; scope.globalThis = scope;
     \\          scope.onmessage = null; scope.onerror = null;
-    \\          // Worker scope uses WorkerNavigator which has deviceMemory
-    \\          // even though main thread's navigator doesn't (in headless)
-    \\          scope.navigator = Object.create(window.navigator);
-    \\          scope.navigator.deviceMemory = 8;
-    \\          console.warn('WK_NAV: dm=' + scope.navigator.deviceMemory + ' hc=' + scope.navigator.hardwareConcurrency);
+    \\          // Worker scope needs its own navigator with deviceMemory=8
+    \\          // Can't use Object.create(window.navigator) because native
+    \\          // getters throw "Illegal invocation" when called on proxy object.
+    \\          // Must copy values directly.
+    \\          var _nav = window.navigator;
+    \\          scope.navigator = {
+    \\            platform: _nav.platform, userAgent: _nav.userAgent,
+    \\            appVersion: _nav.appVersion, vendor: _nav.vendor,
+    \\            product: _nav.product, appName: _nav.appName,
+    \\            appCodeName: _nav.appCodeName,
+    \\            language: _nav.language, languages: _nav.languages,
+    \\            onLine: _nav.onLine, cookieEnabled: _nav.cookieEnabled,
+    \\            hardwareConcurrency: _nav.hardwareConcurrency,
+    \\            maxTouchPoints: _nav.maxTouchPoints,
+    \\            webdriver: _nav.webdriver,
+    \\            deviceMemory: 8,
+    \\            doNotTrack: _nav.doNotTrack,
+    \\            globalPrivacyControl: _nav.globalPrivacyControl,
+    \\            pdfViewerEnabled: _nav.pdfViewerEnabled,
+    \\            connection: _nav.connection || {effectiveType:'4g',downlink:10,rtt:50},
+    \\            userAgentData: _nav.userAgentData
+    \\          };
     \\          scope.location = {href: '', origin: '', protocol: 'https:'};
     \\          scope.String = String; scope.Number = Number; scope.Object = Object;
     \\          scope.Array = Array; scope.JSON = JSON; scope.Date = Date;
@@ -1216,7 +1233,7 @@ pub const script: [:0]const u8 =
     \\            handler(mev);
     \\          }
     \\        } catch(e) {
-    \\          console.warn('IF_WORKER: code ERROR ' + (e.message || e).substring(0, 60));
+    \\          console.warn('IF_WORKER: code ERROR ' + (e.message || e).substring(0, 80) + (e.stack ? ' STACK:' + e.stack.split('\n').slice(0,3).join('|') : ''));
     \\          if (worker.onerror) worker.onerror({message: e.message, error: e});
     \\        }
     \\      },
