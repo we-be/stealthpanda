@@ -387,8 +387,14 @@ pub const script: [:0]const u8 =
     \\      if (urlType === 'API' && body) {
     \\        console.warn('API_BODY: f=' + flowNum + ' ' + String(body).substring(0,200));
     \\      }
-    \\      // For initial flow POST, analyze body characteristics
-    \\      if (urlType === 'FLOW' && flowNum === 1 && body && body.length > 3000) {
+    \\      // Log full body of initial flow POST (3-4KB, base64-like)
+    \\      if (urlType === 'FLOW' && flowNum === 1 && body && body.length > 1000) {
+    \\        // Split body into chunks for logging
+    \\        for (var bi = 0; bi < body.length && bi < 5000; bi += 200) {
+    \\          console.warn('FLOW_B' + Math.floor(bi/200) + ': ' + body.substring(bi, bi+200));
+    \\        }
+    \\      }
+    \\      if (false && urlType === 'FLOW' && flowNum === 1 && body && body.length > 3000) {
     \\        var chars = {};
     \\        for (var ci = 0; ci < body.length; ci++) chars[body[ci]] = 1;
     \\        var uniq = Object.keys(chars).sort().join('');
@@ -1124,7 +1130,8 @@ pub const script: [:0]const u8 =
     \\    _workerCount++;
     \\    var _wid = _workerCount;
     \\    var cached = _blobCache[url];
-    \\    console.warn('WK_NEW: #' + _wid + ' url=' + (url||'').substring(0,50) + ' cached=' + (cached ? cached.length : 'NO') + ' code=' + (cached || '').substring(0,100));
+    \\    console.warn('WK_NEW: #' + _wid + ' cached=' + (cached ? cached.length : 'NO'));
+    \\    if (cached && cached.length < 200) console.warn('WK_CODE: ' + cached);
     \\    var _code = null, _msgHandler = null;
     \\    var worker = {
     \\      onmessage: null, onerror: null,
