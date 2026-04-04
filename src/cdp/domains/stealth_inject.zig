@@ -119,6 +119,18 @@ pub const script: [:0]const u8 =
     \\    if (ms >= 490 && ms <= 510) return _origST.call(window, fn, 50);
     \\    return _origST.apply(window, arguments);
     \\  };
+    \\  // Accelerate 500ms VM processing timers
+    \\  (function() {
+    \\    var origST = window.setTimeout;
+    \\    window.setTimeout = function(fn, ms) {
+    \\      if (ms >= 490 && ms <= 510) {
+    \\        var a = [fn, 50];
+    \\        for (var i = 2; i < arguments.length; i++) a.push(arguments[i]);
+    \\        return origST.apply(this, a);
+    \\      }
+    \\      return origST.apply(this, arguments);
+    \\    };
+    \\  })();
     \\  // XHR tracking
     \\  var _origXHRSend = XMLHttpRequest.prototype.send;
     \\  var _origXHROpen = XMLHttpRequest.prototype.open;

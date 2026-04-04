@@ -15,13 +15,24 @@ _entries: std.ArrayList(*Entry) = .{},
 _timing: PerformanceTiming = .{},
 _navigation: PerformanceNavigation = .{},
 
-/// Get high-resolution timestamp in microseconds, rounded to 5μs increments
-/// to match browser behavior (prevents fingerprinting)
+/// Last returned timestamp — ensures monotonic, always-advancing values
+var _last_timestamp: u64 = 0;
+
+/// Get high-resolution timestamp in nanoseconds.
+/// Chrome's performance.now() has ~5μs resolution but ALWAYS advances
+/// between consecutive calls. We ensure this by tracking the last value
+/// and advancing by at least 100ns (0.0001ms) — well within Chrome's
+/// normal variance.
 fn highResTimestamp() u64 {
     const ts = datetime.timespec();
-    const micros = @as(u64, @intCast(ts.sec)) * 1_000_000 + @as(u64, @intCast(@divTrunc(ts.nsec, 1_000)));
-    // Round to nearest 5 microseconds (like Firefox default)
-    const rounded = @divTrunc(micros + 2, 5) * 5;
+    const nanos = @as(u64, @intCast(ts.sec)) * 1_000_000_000 + @as(u64, @intCast(ts.nsec));
+    // Round to nearest 100 nanoseconds (0.1μs) for realistic precision
+    var rounded = @divTrunc(nanos + 50, 100) * 100;
+    // Ensure strictly monotonic — always advance by at least 100ns
+    if (rounded <= _last_timestamp) {
+        rounded = _last_timestamp + 100;
+    }
+    _last_timestamp = rounded;
     return rounded;
 }
 
@@ -41,13 +52,13 @@ pub fn getTiming(self: *Performance) *PerformanceTiming {
 pub fn now(self: *const Performance) f64 {
     const current = highResTimestamp();
     const elapsed = current - self._time_origin;
-    // Return as milliseconds with microsecond precision
-    return @as(f64, @floatFromInt(elapsed)) / 1000.0;
+    // Return as milliseconds (nanoseconds / 1_000_000)
+    return @as(f64, @floatFromInt(elapsed)) / 1_000_000.0;
 }
 
 pub fn getTimeOrigin(self: *const Performance) f64 {
-    // Return as milliseconds
-    return @as(f64, @floatFromInt(self._time_origin)) / 1000.0;
+    // Return as milliseconds (nanoseconds / 1_000_000)
+    return @as(f64, @floatFromInt(self._time_origin)) / 1_000_000.0;
 }
 
 pub fn getNavigation(self: *Performance) *PerformanceNavigation {
