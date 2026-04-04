@@ -139,8 +139,22 @@ pub const script: [:0]const u8 =
     \\  window.addEventListener('error', function(e) {
     \\    console.warn('IF_ERR: ' + (e.message || '') + ' at ' + (e.filename || '').slice(-40) + ':' + e.lineno);
     \\  });
-    \\  // Canvas fingerprint: our z2d canvas produces unique but consistent
-    \\  // pixel data. No intervention needed — the hash is deterministic.
+    \\  // Track ALL errors in the iframe — the chl_api_m fallback path is
+    \\  // triggered by a failed operation in the VM bytecode.
+    \\  // Chrome makes 0 chl_api_m requests. We make 5-7.
+    \\  // Find what triggers the fallback.
+    \\  var _errLog = [];
+    \\  window.addEventListener('error', function(e) {
+    \\    _errLog.push('ERR:' + (e.message||'') + '@' + e.lineno);
+    \\    if (_errLog.length <= 5) console.warn('IF_ERR: ' + e.message + ' at ' + (e.filename||'').slice(-30) + ':' + e.lineno);
+    \\  });
+    \\  window.addEventListener('unhandledrejection', function(e) {
+    \\    var r = e.reason || {};
+    \\    _errLog.push('REJ:' + (r.message || String(r)).substring(0,40));
+    \\    if (_errLog.length <= 5) console.warn('IF_REJ: ' + (r.message || String(r)).substring(0,60));
+    \\  });
+    \\  // Track property access failures via Proxy (for window and document)
+    \\  // This catches the VM probing for APIs that don't exist
     \\  // Track WebGL getParameter calls to see what CF checks
     \\  try {
     \\    var _origGlGetParam = WebGLRenderingContext.prototype.getParameter;
@@ -194,6 +208,9 @@ pub const script: [:0]const u8 =
     \\      var bodyStr = (typeof body === 'string') ? body : '';
     \\      var urlType = (this._stUrl || '').indexOf('chl_api_m') >= 0 ? 'API' : 'FLOW';
     \\      console.warn('IF_XHR: ' + urlType + ' f=' + flowNum + ' t=' + elapsed + 'ms len=' + (body ? body.length : 0));
+    \\      if (urlType === 'API' && flowNum <= 2) {
+    \\        console.warn('ERRS_AT_API: ' + _errLog.join(' | '));
+    \\      }
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
