@@ -208,9 +208,6 @@ pub const script: [:0]const u8 =
     \\      var bodyStr = (typeof body === 'string') ? body : '';
     \\      var urlType = (this._stUrl || '').indexOf('chl_api_m') >= 0 ? 'API' : 'FLOW';
     \\      console.warn('IF_XHR: ' + urlType + ' f=' + flowNum + ' t=' + elapsed + 'ms len=' + (body ? body.length : 0));
-    \\      if (urlType === 'API' && flowNum <= 2) {
-    \\        console.warn('ERRS_AT_API: ' + _errLog.join(' | '));
-    \\      }
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';

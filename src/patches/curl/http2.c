@@ -175,15 +175,15 @@ static size_t populate_settings(nghttp2_settings_entry *iv,
                                   struct Curl_easy *data,
                                   struct cf_h2_ctx *ctx)
 {
-  /* StealthPanda: Chrome-like H2 SETTINGS for TLS fingerprint matching.
-   * Chrome sends: HEADER_TABLE_SIZE=65536, MAX_CONCURRENT_STREAMS=1000,
-   * INITIAL_WINDOW_SIZE=6291456, MAX_HEADER_LIST_SIZE=262144
-   * Order matters for the Akamai H2 fingerprint. */
+  /* StealthPanda: Chrome 146 H2 SETTINGS for Akamai fingerprint matching.
+   * Chrome 146 sends: 1:65536, 2:0, 4:6291456, 6:262144
+   * Akamai fingerprint: 1:65536;2:0;4:6291456;6:262144
+   * Note: Chrome does NOT send MAX_CONCURRENT_STREAMS (3) */
   iv[0].settings_id = NGHTTP2_SETTINGS_HEADER_TABLE_SIZE;
   iv[0].value = 65536;
 
-  iv[1].settings_id = NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS;
-  iv[1].value = Curl_multi_max_concurrent_streams(data->multi);
+  iv[1].settings_id = NGHTTP2_SETTINGS_ENABLE_PUSH;
+  iv[1].value = 0;
 
   iv[2].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE;
   iv[2].value = 6291456; /* Chrome's value (6MB) */
