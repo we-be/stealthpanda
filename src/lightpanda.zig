@@ -55,6 +55,26 @@ pub const FetchOpts = struct {
     dump_mode: ?Config.DumpFormat = null,
     writer: ?*std.Io.Writer = null,
 };
+/// Inject cookies from a cookie string (format: "name=value; name2=value2")
+fn injectCookies(jar: *@import("browser/webapi/storage/Cookie.zig").Jar, allocator: std.mem.Allocator, url: [:0]const u8, cookie_str: [:0]const u8) void {
+    // Parse "name=value; name2=value2" format
+    var iter = std.mem.splitSequence(u8, cookie_str, "; ");
+    while (iter.next()) |part| {
+        if (part.len == 0) continue;
+        // Extract domain from URL for Set-Cookie format
+        const domain = blk: {
+            var s = url;
+            if (std.mem.startsWith(u8, s, "https://")) s = s["https://".len..];
+            if (std.mem.startsWith(u8, s, "http://")) s = s["http://".len..];
+            const end = std.mem.indexOfScalar(u8, s, '/') orelse s.len;
+            break :blk s[0..end];
+        };
+        const set_cookie = std.fmt.allocPrintSentinel(allocator, "{s}; domain={s}; path=/", .{ part, domain }, 0) catch continue;
+        const cookie = @import("browser/webapi/storage/Cookie.zig").parse(allocator, url, set_cookie) catch continue;
+        jar.add(cookie, std.time.timestamp()) catch continue;
+    }
+}
+
 pub fn fetch(app: *App, url: [:0]const u8, opts: FetchOpts) !void {
     const http_client = try HttpClient.init(app.allocator, &app.network);
     defer http_client.deinit();
@@ -106,6 +126,11 @@ pub fn fetch(app: *App, url: [:0]const u8, opts: FetchOpts) !void {
     //         log.err(.app, "profile error", .{ .err = err });
     //     }
     // }
+
+    // Inject cookies from CLI --cookie option
+    if (app.config.cookie()) |cookie_str| {
+        injectCookies(&session.cookie_jar, app.allocator, url, cookie_str);
+    }
 
     const encoded_url = try URL.ensureEncoded(page.call_arena, url);
     _ = try page.navigate(encoded_url, .{

@@ -161,6 +161,13 @@ pub fn tlsProfile(self: *const Config) *const TlsProfile {
     return &TlsProfile.default;
 }
 
+pub fn cookie(self: *const Config) ?[:0]const u8 {
+    return switch (self.mode) {
+        inline .serve, .fetch, .mcp => |opts| opts.common.cookie,
+        else => null,
+    };
+}
+
 pub fn screenWidth(self: *const Config) u32 {
     return switch (self.mode) {
         inline .serve, .fetch, .mcp => |opts| opts.common.screen_width,
@@ -314,6 +321,9 @@ pub const Common = struct {
 
     screen_width: u32 = 1920,
     screen_height: u32 = 1080,
+
+    /// Cookie to inject into the session (format: "name=value; name2=value2")
+    cookie: ?[:0]const u8 = null,
 
     tls_profile: ?[]const u8 = null,
 };
@@ -1182,6 +1192,15 @@ fn parseCommonArg(
             return error.InvalidArgument;
         };
         common.http_cache_dir = try allocator.dupe(u8, str);
+        return true;
+    }
+
+    if (std.mem.eql(u8, "--cookie", opt)) {
+        const str = args.next() orelse {
+            log.fatal(.app, "missing argument value", .{ .arg = "--cookie" });
+            return error.InvalidArgument;
+        };
+        common.cookie = try allocator.dupeZ(u8, str);
         return true;
     }
 
