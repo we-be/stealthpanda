@@ -432,11 +432,8 @@ pub fn headersForRequest(self: *Page, headers: *HttpClient.Headers) !void {
         try headers.add(referer);
     }
 
-    // Add Chrome Client Hints for XHR/fetch requests
-    try headers.add("Sec-CH-UA: \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\", \"Google Chrome\";v=\"131\"");
-    try headers.add("Sec-CH-UA-Mobile: ?0");
-    try headers.add("Sec-CH-UA-Platform: \"Linux\"");
-    try headers.add("Accept-Language: en-US,en;q=0.9");
+    // Note: Sec-CH-UA headers are only sent on navigation requests, not XHR/fetch
+    // Chrome only sends Client Hints to same-origin or opted-in cross-origins
 }
 
 pub fn getArena(self: *Page, comptime opts: Session.GetArenaOpts) !Allocator {
@@ -588,10 +585,19 @@ pub fn navigate(self: *Page, request_url: [:0]const u8, opts: NavigateOpts) !voi
     try headers.add("Sec-CH-UA: \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\", \"Google Chrome\";v=\"131\"");
     try headers.add("Sec-CH-UA-Mobile: ?0");
     try headers.add("Sec-CH-UA-Platform: \"Linux\"");
-    try headers.add("Sec-Fetch-Dest: document");
-    try headers.add("Sec-Fetch-Mode: navigate");
-    try headers.add("Sec-Fetch-Site: none");
-    try headers.add("Sec-Fetch-User: ?1");
+    // Sec-Fetch headers differ for top-level vs iframe navigation
+    if (self.parent != null) {
+        // Iframe navigation
+        try headers.add("Sec-Fetch-Dest: iframe");
+        try headers.add("Sec-Fetch-Mode: navigate");
+        try headers.add("Sec-Fetch-Site: cross-site");
+    } else {
+        // Top-level navigation
+        try headers.add("Sec-Fetch-Dest: document");
+        try headers.add("Sec-Fetch-Mode: navigate");
+        try headers.add("Sec-Fetch-Site: none");
+        try headers.add("Sec-Fetch-User: ?1");
+    }
     try headers.add("Upgrade-Insecure-Requests: 1");
     // We dispatch page_navigate event before sending the request.
     // It ensures the event page_navigated is not dispatched before this one.
