@@ -670,31 +670,100 @@ fn isLengthProperty(name: []const u8) bool {
 }
 
 fn getDefaultPropertyValue(self: *const CSSStyleDeclaration, name: String) []const u8 {
+    // Return Chrome-like default computed values for CSS properties.
+    // Without a full CSS engine, we provide realistic defaults for the
+    // properties that fingerprinting/detection scripts commonly check.
+    const s = name.str();
+    if (s.len == 0) return "";
+
+    // Use a lookup for common properties
+    const defaults = std.StaticStringMap([]const u8).initComptime(.{
+        // Box model
+        .{ "margin", "0px" },
+        .{ "margin-top", "0px" },
+        .{ "margin-right", "0px" },
+        .{ "margin-bottom", "0px" },
+        .{ "margin-left", "0px" },
+        .{ "padding", "0px" },
+        .{ "padding-top", "0px" },
+        .{ "padding-right", "0px" },
+        .{ "padding-bottom", "0px" },
+        .{ "padding-left", "0px" },
+        .{ "border-width", "0px" },
+        .{ "border-style", "none" },
+        .{ "border-color", "rgb(0, 0, 0)" },
+        // Typography
+        .{ "font-family", "\"Times New Roman\"" },
+        .{ "font-size", "16px" },
+        .{ "font-style", "normal" },
+        .{ "font-weight", "400" },
+        .{ "line-height", "normal" },
+        .{ "text-align", "start" },
+        .{ "text-decoration", "none solid rgb(0, 0, 0)" },
+        .{ "text-transform", "none" },
+        .{ "letter-spacing", "normal" },
+        .{ "word-spacing", "0px" },
+        // Layout
+        .{ "position", "static" },
+        .{ "top", "auto" },
+        .{ "right", "auto" },
+        .{ "bottom", "auto" },
+        .{ "left", "auto" },
+        .{ "float", "none" },
+        .{ "clear", "none" },
+        .{ "z-index", "auto" },
+        .{ "overflow", "visible" },
+        .{ "overflow-x", "visible" },
+        .{ "overflow-y", "visible" },
+        .{ "box-sizing", "content-box" },
+        // Dimensions
+        .{ "width", "auto" },
+        .{ "height", "auto" },
+        .{ "min-width", "0px" },
+        .{ "min-height", "0px" },
+        .{ "max-width", "none" },
+        .{ "max-height", "none" },
+        // Visual
+        .{ "opacity", "1" },
+        .{ "visibility", "visible" },
+        .{ "background-color", "rgba(0, 0, 0, 0)" },
+        .{ "background-image", "none" },
+        .{ "cursor", "auto" },
+        .{ "pointer-events", "auto" },
+        .{ "user-select", "auto" },
+        .{ "-webkit-user-select", "auto" },
+        // Flexbox
+        .{ "flex-direction", "row" },
+        .{ "flex-wrap", "nowrap" },
+        .{ "justify-content", "normal" },
+        .{ "align-items", "normal" },
+        .{ "align-content", "normal" },
+        // Transforms
+        .{ "transform", "none" },
+        .{ "transition", "all 0s ease 0s" },
+        // Other
+        .{ "outline", "rgb(0, 0, 0) none 0px" },
+        .{ "white-space", "normal" },
+        .{ "vertical-align", "baseline" },
+        .{ "list-style-type", "disc" },
+        .{ "direction", "ltr" },
+        .{ "unicode-bidi", "normal" },
+    });
+
+    if (defaults.get(s)) |val| return val;
+
+    // Fall back to element-specific defaults
     switch (name.len) {
         5 => {
             if (name.eql(comptime .wrap("color"))) {
-                const element = self._element orelse return "";
+                const element = self._element orelse return "rgb(0, 0, 0)";
                 return getDefaultColor(element);
             }
         },
         7 => {
-            if (name.eql(comptime .wrap("opacity"))) {
-                return "1";
-            }
             if (name.eql(comptime .wrap("display"))) {
-                const element = self._element orelse return "";
+                const element = self._element orelse return "block";
                 return getDefaultDisplay(element);
-            }
-        },
-        10 => {
-            if (name.eql(comptime .wrap("visibility"))) {
-                return "visible";
-            }
-        },
-        16 => {
-            if (name.eqlSlice("background-color")) {
-                // transparent
-                return "rgba(0, 0, 0, 0)";
             }
         },
         else => {},

@@ -1034,8 +1034,7 @@ pub const JsApi = struct {
     pub const screenY = bridge.property(@as(i32, 0), .{ .template = false });
     pub const screenLeft = bridge.property(@as(i32, 0), .{ .template = false });
     pub const screenTop = bridge.property(@as(i32, 0), .{ .template = false });
-    pub const devicePixelRatio = bridge.property(@as(f64, 1.0), .{ .template = false });
-    pub const isSecureContext = bridge.property(true, .{ .template = false });
+    // devicePixelRatio and isSecureContext defined below
     pub const pageXOffset = bridge.accessor(Window.getScrollX, null, .{});
     pub const pageYOffset = bridge.accessor(Window.getScrollY, null, .{});
     pub const scrollTo = bridge.function(Window.scrollTo, .{});
