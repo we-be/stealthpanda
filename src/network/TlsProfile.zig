@@ -30,11 +30,17 @@ const boringssl = struct {
     // ECH GREASE — sends encrypted_client_hello extension in ClientHello
     // Chrome enables this to signal ECH support even without real ECH keys
     extern fn SSL_set_enable_ech_grease(ssl: *SSL, enable: c_int) void;
+    // Signature algorithms — Chrome 146 doesn't include rsa_pkcs1_sha1
+    extern fn SSL_CTX_set1_sigalgs_list(ctx: *SSL_CTX, sigalgs: [*:0]const u8) c_int;
 };
 
 /// SSL context callback — configures BoringSSL to send Chrome-like extensions
 fn sslCtxCallback(_: ?*libcurl.Curl, ssl_ctx: ?*anyopaque, _: ?*anyopaque) callconv(.c) c_uint {
     const ctx: *boringssl.SSL_CTX = @ptrCast(ssl_ctx orelse return 0);
+    // Set signature algorithms to match Chrome 146 (no rsa_pkcs1_sha1)
+    _ = boringssl.SSL_CTX_set1_sigalgs_list(ctx, "ECDSA+SHA256:RSA-PSS+SHA256:RSA+SHA256:" ++
+        "ECDSA+SHA384:RSA-PSS+SHA384:RSA+SHA384:" ++
+        "RSA-PSS+SHA512:RSA+SHA512");
     // Enable GREASE (RFC 8701) — Chrome adds random GREASE values
     boringssl.SSL_CTX_set_grease_enabled(ctx, 1);
     // Enable extension permutation — Chrome randomizes extension order (since ~106)
