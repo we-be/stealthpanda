@@ -321,7 +321,7 @@ pub const Common = struct {
 /// Pre-formatted HTTP headers for reuse across Http and Client.
 /// Must be initialized with an allocator that outlives all HTTP connections.
 pub const HttpHeaders = struct {
-    const user_agent_base: [:0]const u8 = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+    const user_agent_base: [:0]const u8 = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36";
 
     user_agent: [:0]const u8,
     user_agent_header: [:0]const u8,
@@ -344,7 +344,7 @@ pub const HttpHeaders = struct {
         // Client Hints headers — must match the UA string
         const sec_ch_ua_header: [:0]const u8 = try std.fmt.allocPrintSentinel(
             allocator,
-            "sec-ch-ua: \"Chromium\";v=\"131\", \"Google Chrome\";v=\"131\", \"Not_A Brand\";v=\"24\"",
+            "sec-ch-ua: \"Chromium\";v=\"146\", \"Google Chrome\";v=\"146\", \"Not_A Brand\";v=\"24\"",
             .{},
             0,
         );

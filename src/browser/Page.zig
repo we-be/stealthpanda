@@ -582,7 +582,7 @@ pub fn navigate(self: *Page, request_url: [:0]const u8, opts: NavigateOpts) !voi
     // Add Chrome-like headers for navigation requests
     try headers.add("Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7");
     try headers.add("Accept-Language: en-US,en;q=0.9");
-    try headers.add("Sec-CH-UA: \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\", \"Google Chrome\";v=\"131\"");
+    try headers.add("Sec-CH-UA: \"Chromium\";v=\"146\", \"Not_A Brand\";v=\"24\", \"Google Chrome\";v=\"146\"");
     try headers.add("Sec-CH-UA-Mobile: ?0");
     try headers.add("Sec-CH-UA-Platform: \"Linux\"");
     // Sec-Fetch headers differ for top-level vs iframe navigation
