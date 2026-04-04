@@ -27,6 +27,9 @@ const boringssl = struct {
     extern fn SSL_CTX_set_info_callback(ctx: *SSL_CTX, cb: ?*const fn (*SSL, c_int, c_int) callconv(.c) void) void;
     extern fn SSL_add_application_settings(ssl: *SSL, proto: [*]const u8, proto_len: usize, settings: [*]const u8, settings_len: usize) c_int;
     extern fn SSL_set_alps_use_new_codepoint(ssl: *SSL, use_new: c_int) void;
+    // ECH GREASE — sends encrypted_client_hello extension in ClientHello
+    // Chrome enables this to signal ECH support even without real ECH keys
+    extern fn SSL_set_enable_ech_grease(ssl: *SSL, enable: c_int) void;
 };
 
 /// SSL context callback — configures BoringSSL to send Chrome-like extensions
@@ -104,9 +107,11 @@ fn certDecompress(
 fn sslInfoCallback(ssl: *boringssl.SSL, where: c_int, _: c_int) callconv(.c) void {
     const SSL_CB_HANDSHAKE_START: c_int = 0x10;
     if (where & SSL_CB_HANDSHAKE_START != 0) {
-        // Use the old ALPS codepoint (produces smaller challenge response)
-        // The new codepoint (1) maps to 0x44cd in our BoringSSL, not 0xfe0d
-        boringssl.SSL_set_alps_use_new_codepoint(ssl, 0);
+        // Enable ECH GREASE — adds encrypted_client_hello extension (0xfe0d)
+        // Chrome 146 enables this to signal ECH support
+        boringssl.SSL_set_enable_ech_grease(ssl, 1);
+        // Use new ALPS codepoint to match Chrome 146 (fe0d → 44cd in our BoringSSL)
+        boringssl.SSL_set_alps_use_new_codepoint(ssl, 1);
         // Add ALPS settings for h2 protocol
         // Chrome sends its H2 SETTINGS via ALPS during the TLS handshake
         _ = boringssl.SSL_add_application_settings(ssl, "h2", 2, "", 0);
