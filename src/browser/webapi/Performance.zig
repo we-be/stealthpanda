@@ -54,8 +54,17 @@ pub fn getTiming(self: *Performance) *PerformanceTiming {
 pub fn now(self: *const Performance) f64 {
     const current = highResTimestamp();
     const elapsed = current - self._time_origin;
-    // Return as milliseconds (nanoseconds / 1_000_000)
-    return @as(f64, @floatFromInt(elapsed)) / 1_000_000.0;
+    // Return as milliseconds. Chrome uses DOMHighResTimeStamp (double).
+    // Chrome's internal conversion from TimeTicks produces values like
+    // 100.39999999403954 (not clean 100.4). This float noise is from
+    // converting microseconds via double arithmetic.
+    // We simulate this by converting through a float32 intermediate,
+    // which introduces similar rounding artifacts.
+    const ns_f64 = @as(f64, @floatFromInt(elapsed));
+    const ms_f64 = ns_f64 / 1_000_000.0;
+    // Round-trip through float32 to add Chrome-like precision artifacts
+    const ms_f32: f32 = @floatCast(ms_f64);
+    return @as(f64, ms_f32);
 }
 
 pub fn getTimeOrigin(self: *const Performance) f64 {
