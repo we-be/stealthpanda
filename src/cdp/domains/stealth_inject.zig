@@ -104,6 +104,8 @@ pub const script: [:0]const u8 =
     \\            console.warn('PAR_WPR2: ' + wp.substring(120,240));
     \\          } catch(ex) {}
     \\        }
+    \\        if (e.data.event === 'fail') console.warn('RESULT_FAIL: ' + (e.data.code || 'none'));
+    \\        if (e.data.event === 'turnstileResults') console.warn('RESULT_OK: token=' + String(e.data.token || '').substring(0,30));
     \\        console.warn('PAR_IN: ' + e.data.event + extra);
     \\      }
     \\    }
@@ -126,33 +128,24 @@ pub const script: [:0]const u8 =
     \\      } catch(ex) { console.warn('WPR_ERR: ' + ex.message); }
     \\    }
     \\  });
-    \\  // Suppress overrunBegin — our POW is slightly slower than real Workers
-    \\  var _origPM2 = window.parent.postMessage;
-    \\  try {
-    \\    var _pmBound = _origPM2.bind(window.parent);
-    \\    window.parent.postMessage = function(msg, origin) {
-    \\      if (msg && typeof msg === 'object' && msg.event === 'overrunBegin') return;
-    \\      return _pmBound(msg, origin);
-    \\    };
-    \\  } catch(e) {}
-    \\  // Accelerate VM 500ms processing timers to 50ms
-    \\  var _origST = window.setTimeout;
-    \\  window.setTimeout = function(fn, ms) {
-    \\    if (ms >= 490 && ms <= 510) return _origST.call(window, fn, 50);
-    \\    return _origST.apply(window, arguments);
-    \\  };
-    \\  // Accelerate 500ms VM processing timers
+    \\  // Accelerate 500ms VM processing timers to 100ms
     \\  (function() {
     \\    var origST = window.setTimeout;
     \\    window.setTimeout = function(fn, ms) {
     \\      if (ms >= 490 && ms <= 510) {
-    \\        var a = [fn, 50];
-    \\        for (var i = 2; i < arguments.length; i++) a.push(arguments[i]);
-    \\        return origST.apply(this, a);
+    \\        return origST.call(null, fn, 100);
     \\      }
-    \\      return origST.apply(this, arguments);
+    \\      return origST.apply(null, arguments);
     \\    };
     \\  })();
+    \\  // Suppress overrunBegin (our POW slightly slower than real Workers)
+    \\  try {
+    \\    var _pmOrig = window.parent.postMessage.bind(window.parent);
+    \\    window.parent.postMessage = function(msg, origin) {
+    \\      if (msg && typeof msg === 'object' && msg.event === 'overrunBegin') return;
+    \\      return _pmOrig(msg, origin);
+    \\    };
+    \\  } catch(e) {}
     \\  // XHR tracking
     \\  var _origXHRSend = XMLHttpRequest.prototype.send;
     \\  var _origXHROpen = XMLHttpRequest.prototype.open;
