@@ -172,10 +172,8 @@ pub const script: [:0]const u8 =
     \\        var rsp = xhr.responseText || '';
     \\        var elapsed2 = Date.now() - _flowStartTime;
     \\        var rspBody = rsp.length <= 50 ? rsp : rsp.substring(0,50);
-    \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length + ' body=' + rspBody);
-    \\        if (xhr.status >= 400 && rsp.length > 2) {
-    \\          console.warn('REJECTED_BODY: ' + rsp.substring(0, 200));
-    \\        }
+    \\        var allHdrs = (xhr.getAllResponseHeaders() || '').replace(/\r?\n/g, ' | ').substring(0, 100);
+    \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length + ' body=' + rspBody + ' hdrs=' + allHdrs);
     \\      });
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
