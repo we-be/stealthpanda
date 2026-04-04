@@ -617,7 +617,6 @@ pub const script: [:0]const u8 =
     \\  var _origBlob = window.Blob;
     \\  window.Blob = function(parts, options) {
     \\    var blob = new _origBlob(parts, options);
-    \\    // Store text parts synchronously for Worker blob cache
     \\    try {
     \\      if (parts && parts.length > 0 && typeof parts[0] === 'string') {
     \\        blob._textContent = parts.join('');
@@ -626,6 +625,7 @@ pub const script: [:0]const u8 =
     \\    return blob;
     \\  };
     \\  window.Blob.prototype = _origBlob.prototype;
+    \\  Object.defineProperty(window.Blob, 'name', {value: 'Blob'});
     \\  var _origWorker = window.Worker;
     \\  window.Worker = function(url) {
     \\    var _code = null, _msgHandler = null;
@@ -715,10 +715,16 @@ pub const script: [:0]const u8 =
     \\      // Try cached blob content first (instant)
     \\      if (_blobCache[url]) {
     \\        _code = _blobCache[url];
+    \\        if (_code.length > 13 && _code.length <= 200) {
+    \\          console.warn('IF_WK_CODE: ' + _code);
+    \\        }
     \\      } else {
     \\        // Fallback to fetch
     \\        fetch(url).then(function(r) { return r.text(); }).then(function(code) {
     \\          _code = code;
+    \\          if (_code.length > 13 && _code.length <= 200) {
+    \\            console.warn('IF_WK_CODE: ' + _code);
+    \\          }
     \\        }).catch(function() {});
     \\      }
     \\    }

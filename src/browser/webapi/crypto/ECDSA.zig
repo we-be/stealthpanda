@@ -152,8 +152,7 @@ pub fn importSpkiPublicKey(
     const local = page.js.local.?;
 
     // Method 1: Try BoringSSL's native CBS parser
-    var cbs: crypto.CBS = undefined;
-    crypto.CBS_init(&cbs, key_data.ptr, key_data.len);
+    var cbs = crypto.CBS{ .data = key_data.ptr, .len = key_data.len };
     if (crypto.EVP_parse_public_key(&cbs)) |pkey| {
         const key_copy = try page.arena.dupe(u8, key_data);
         const crypto_key = try page._factory.create(CryptoKey{
