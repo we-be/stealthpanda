@@ -139,6 +139,8 @@ pub const script: [:0]const u8 =
     \\  window.addEventListener('error', function(e) {
     \\    console.warn('IF_ERR: ' + (e.message || '') + ' at ' + (e.filename || '').slice(-40) + ':' + e.lineno);
     \\  });
+    \\  // Canvas fingerprint: our z2d canvas produces unique but consistent
+    \\  // pixel data. No intervention needed — the hash is deterministic.
     \\  // Track WebGL getParameter calls to see what CF checks
     \\  try {
     \\    var _origGlGetParam = WebGLRenderingContext.prototype.getParameter;
