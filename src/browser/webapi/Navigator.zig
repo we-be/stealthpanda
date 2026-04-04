@@ -197,7 +197,9 @@ pub const JsApi = struct {
     pub const onLine = bridge.property(true, .{ .template = false });
     pub const cookieEnabled = bridge.property(true, .{ .template = false });
     pub const hardwareConcurrency = bridge.accessor(Navigator.getHardwareConcurrency, null, .{});
-    pub const deviceMemory = bridge.property(@as(f64, 8.0), .{ .template = false });
+    // Chrome headless does NOT expose deviceMemory (returns undefined).
+    // Removing this property makes it return undefined, matching Chrome headless.
+    // pub const deviceMemory = bridge.property(@as(f64, 8.0), .{ .template = false });
     pub const maxTouchPoints = bridge.property(0, .{ .template = false });
     pub const vendor = bridge.property("Google Inc.", .{ .template = false });
     pub const product = bridge.property("Gecko", .{ .template = false });
