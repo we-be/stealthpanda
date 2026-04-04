@@ -6,7 +6,7 @@
 
 pub const script: [:0]const u8 =
     \\(function() {
-    \\  // Chrome 131 Window constructors that should exist as native functions
+    \\  // Chrome 146 Window constructors that should exist as native functions
     \\  var missing = [
     \\    'AnimationEffect','AnimationEvent','AnimationPlaybackEvent','AnimationTimeline',
     \\    'AnalyserNode','AudioBuffer','AudioBufferSourceNode','AudioDestinationNode',

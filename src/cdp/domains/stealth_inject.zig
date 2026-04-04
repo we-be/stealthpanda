@@ -112,22 +112,54 @@ pub const script: [:0]const u8 =
     \\      }
     \\    }
     \\  });
+    \\  // Track extraParams sent to CF iframe — MutationObserver catches iframe creation
+    \\  try {
+    \\    var _epObs = new MutationObserver(function(muts) {
+    \\      muts.forEach(function(m) {
+    \\        m.addedNodes.forEach(function(n) {
+    \\          try {
+    \\            if (n.tagName === 'IFRAME' && n.src && n.src.indexOf('challenges.cloudflare.com') >= 0) {
+    \\              n.addEventListener('load', function() {
+    \\                try {
+    \\                  var cw = n.contentWindow;
+    \\                  if (!cw) return;
+    \\                  var origCWPM = cw.postMessage.bind(cw);
+    \\                  cw.postMessage = function(msg, origin) {
+    \\                    if (msg && typeof msg === 'object' && msg.event === 'extraParams') {
+    \\                      console.warn('PAR_OUT_EXTRA: keys=' + Object.keys(msg).sort().join(','));
+    \\                      if (msg.apiJsResourceTiming) console.warn('PAR_OUT_RT: ' + JSON.stringify(msg.apiJsResourceTiming).substring(0,200));
+    \\                      if (msg.wPr) console.warn('PAR_OUT_WPR: ' + JSON.stringify(msg.wPr).substring(0,300));
+    \\                    }
+    \\                    return origCWPM(msg, origin);
+    \\                  };
+    \\                } catch(ex) {}
+    \\              });
+    \\            }
+    \\          } catch(ex) {}
+    \\        });
+    \\      });
+    \\    });
+    \\    var _epTarget = document.documentElement || document.body || document;
+    \\    if (_epTarget) _epObs.observe(_epTarget, {childList: true, subtree: true});
+    \\  } catch(e) {}
     \\}
     // Iframe instrumentation
     \\if (window !== window.top) {
     \\  // Capture extraParams fingerprint data from parent
     \\  window.addEventListener('message', function(e) {
-    \\    if (e.data && typeof e.data === 'object' && e.data.event === 'extraParams' && e.data.wPr) {
+    \\    if (e.data && typeof e.data === 'object' && e.data.event === 'extraParams') {
     \\      try {
-    \\        var wp = JSON.stringify(e.data.wPr);
-    \\        // Output in 120-char chunks
-    \\        for (var ci = 0; ci < wp.length; ci += 120) {
-    \\          console.warn('WPR' + Math.floor(ci/120) + ': ' + wp.substring(ci, ci+120));
-    \\        }
-    \\        console.warn('WPR_LEN: ' + wp.length);
-    \\        // Also log the top-level keys
-    \\        console.warn('WPR_KEYS: ' + Object.keys(e.data.wPr).join(','));
-    \\      } catch(ex) { console.warn('WPR_ERR: ' + ex.message); }
+    \\        // Log ALL keys in the extraParams message (not just wPr)
+    \\        var keys = Object.keys(e.data).sort().join(',');
+    \\        console.warn('EXTRA_KEYS: ' + keys);
+    \\        // Log specific timing and fingerprint fields
+    \\        if (e.data.apiJsResourceTiming) console.warn('EXTRA_RT: ' + JSON.stringify(e.data.apiJsResourceTiming).substring(0,120));
+    \\        if (e.data.chlPageData) console.warn('EXTRA_CPD: ' + JSON.stringify(e.data.chlPageData).substring(0,120));
+    \\        if (e.data.ch) console.warn('EXTRA_CH: len=' + String(e.data.ch).length);
+    \\        if (e.data.scs) console.warn('EXTRA_SCS: ' + JSON.stringify(e.data.scs).substring(0,120));
+    \\        if (e.data.au) console.warn('EXTRA_AU: ' + JSON.stringify(e.data.au).substring(0,120));
+    \\        console.warn('EXTRA_TIMES: init=' + e.data.timeInitMs + ' params=' + e.data.timeParamsMs + ' render=' + e.data.timeRenderMs + ' extra=' + e.data.timeExtraParamsMs);
+    \\      } catch(ex) { console.warn('EXTRA_ERR: ' + ex.message); }
     \\    }
     \\  });
     \\  // Accelerate 500ms VM processing timers to 100ms
@@ -269,12 +301,172 @@ pub const script: [:0]const u8 =
     \\      var val = offsets[key] === 0 && key !== 'navigationStart' ? 0 : now - 500 + offsets[key];
     \\      try { Object.defineProperty(t, key, {value: val, writable: true, configurable: true}); } catch(e) {}
     \\    });
+    \\    // Add toJSON() — CF calls JSON.stringify(performance.timing)
+    \\    if (!t.toJSON || typeof t.toJSON !== 'function') {
+    \\      Object.defineProperty(t, 'toJSON', {value: function() {
+    \\        var o = {};
+    \\        var keys = ['navigationStart','unloadEventStart','unloadEventEnd','redirectStart','redirectEnd','fetchStart','domainLookupStart','domainLookupEnd','connectStart','secureConnectionStart','connectEnd','requestStart','responseStart','responseEnd','domLoading','domInteractive','domContentLoadedEventStart','domContentLoadedEventEnd','domComplete','loadEventStart','loadEventEnd'];
+    \\        for (var i = 0; i < keys.length; i++) o[keys[i]] = this[keys[i]];
+    \\        return o;
+    \\      }, writable: true, configurable: true});
+    \\    }
     \\  } catch(e) {}
     \\})();
     \\
-    // Lock navigator.webdriver to false
+    // PerformanceResourceTiming polyfill — CF Turnstile reads apiJsResourceTiming
+    // from performance.getEntriesByType('resource'). Without real entries, CF
+    // knows we're not a real browser. Intercept script/link loading to generate
+    // synthetic resource timing entries.
+    \\(function() {
+    \\  var _resEntries = [];
+    \\  var _navStart = performance.timeOrigin || Date.now();
+    \\  var _origGetEntries = performance.getEntries.bind(performance);
+    \\  var _origGetByType = performance.getEntriesByType.bind(performance);
+    \\  var _origGetByName = performance.getEntriesByName.bind(performance);
+    \\  function makeResEntry(url, startOff, dur, size, initiator) {
+    \\    var st = performance.now() - startOff;
+    \\    if (st < 0) st = Math.random() * 50 + 10;
+    \\    var dns = st + Math.random() * 2;
+    \\    var conn = dns + Math.random() * 5;
+    \\    var ssl = conn + Math.random() * 10;
+    \\    var reqSt = ssl + Math.random() * 2;
+    \\    var rspSt = reqSt + dur * 0.3;
+    \\    var rspEnd = reqSt + dur;
+    \\    return {
+    \\      name: url, entryType: 'resource', startTime: st,
+    \\      duration: dur, initiatorType: initiator || 'script',
+    \\      nextHopProtocol: 'h2',
+    \\      workerStart: 0, redirectStart: 0, redirectEnd: 0,
+    \\      fetchStart: st, domainLookupStart: dns, domainLookupEnd: dns + 1,
+    \\      connectStart: conn, connectEnd: ssl, secureConnectionStart: conn + 1,
+    \\      requestStart: reqSt, responseStart: rspSt, responseEnd: rspEnd,
+    \\      transferSize: size || Math.floor(dur * 100 + 5000),
+    \\      encodedBodySize: size ? Math.floor(size * 0.7) : Math.floor(dur * 70 + 3500),
+    \\      decodedBodySize: size || Math.floor(dur * 100 + 5000),
+    \\      serverTiming: [],
+    \\      toJSON: function() {
+    \\        var o = {}; for (var k in this) if (typeof this[k] !== 'function') o[k] = this[k]; return o;
+    \\      }
+    \\    };
+    \\  }
+    \\  // Observe script insertions to generate resource entries
+    \\  var _origAppend = Element.prototype.appendChild;
+    \\  Element.prototype.appendChild = function(child) {
+    \\    var result = _origAppend.call(this, child);
+    \\    try {
+    \\      if (child.tagName === 'SCRIPT' && child.src) {
+    \\        var url = child.src;
+    \\        var t = performance.now();
+    \\        child.addEventListener('load', function() {
+    \\          var dur = performance.now() - t;
+    \\          if (dur < 5) dur = Math.random() * 80 + 20;
+    \\          _resEntries.push(makeResEntry(url, dur, dur, 0, 'script'));
+    \\        });
+    \\        child.addEventListener('error', function() {
+    \\          _resEntries.push(makeResEntry(url, 50, 50, 0, 'script'));
+    \\        });
+    \\      } else if (child.tagName === 'LINK' && child.href) {
+    \\        _resEntries.push(makeResEntry(child.href, 30, Math.random()*40+20, 0, 'link'));
+    \\      }
+    \\    } catch(e) {}
+    \\    return result;
+    \\  };
+    \\  // Lazily scan existing DOM for parser-loaded resources on first query
+    \\  var _scanned = false;
+    \\  function _scanExistingResources() {
+    \\    if (_scanned) return;
+    \\    _scanned = true;
+    \\    try {
+    \\      var scripts = document.querySelectorAll('script[src]');
+    \\      for (var i = 0; i < scripts.length; i++) {
+    \\        var src = scripts[i].src;
+    \\        if (src && !_resEntries.some(function(e) { return e.name === src; })) {
+    \\          var dur = Math.random() * 120 + 30;
+    \\          var st = Math.random() * 200 + 20;
+    \\          _resEntries.push(makeResEntry(src, st, dur, 0, 'script'));
+    \\        }
+    \\      }
+    \\      var links = document.querySelectorAll('link[href][rel=stylesheet]');
+    \\      for (var j = 0; j < links.length; j++) {
+    \\        var href = links[j].href;
+    \\        if (href && !_resEntries.some(function(e) { return e.name === href; })) {
+    \\          _resEntries.push(makeResEntry(href, Math.random()*150+40, Math.random()*60+20, 0, 'link'));
+    \\        }
+    \\      }
+    \\    } catch(e) {}
+    \\  }
+    \\  // Also track fetch and XHR as resource entries
+    \\  var _origFetch = window.fetch;
+    \\  if (_origFetch) {
+    \\    window.fetch = function(input, init) {
+    \\      var url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+    \\      var t = performance.now();
+    \\      return _origFetch.apply(this, arguments).then(function(resp) {
+    \\        var dur = performance.now() - t;
+    \\        if (dur < 1) dur = Math.random() * 30 + 5;
+    \\        _resEntries.push(makeResEntry(url, dur, dur, 0, 'fetch'));
+    \\        return resp;
+    \\      });
+    \\    };
+    \\  }
+    \\  // Patch getEntriesByType to include resource entries
+    \\  performance.getEntriesByType = function(type) {
+    \\    var real = _origGetByType(type);
+    \\    if (type === 'resource') {
+    \\      _scanExistingResources();
+    \\      return (real || []).concat(_resEntries);
+    \\    }
+    \\    if (type === 'navigation') {
+    \\      if (real && real.length > 0) return real;
+    \\      // Return a synthetic PerformanceNavigationTiming entry
+    \\      var now = performance.now();
+    \\      return [{
+    \\        name: location.href, entryType: 'navigation', startTime: 0,
+    \\        duration: now, initiatorType: 'navigation',
+    \\        nextHopProtocol: 'h2', workerStart: 0,
+    \\        redirectStart: 0, redirectEnd: 0, redirectCount: 0,
+    \\        fetchStart: 1, domainLookupStart: 5, domainLookupEnd: 10,
+    \\        connectStart: 10, connectEnd: 40, secureConnectionStart: 15,
+    \\        requestStart: 40, responseStart: 80, responseEnd: 120,
+    \\        transferSize: 50000, encodedBodySize: 35000, decodedBodySize: 50000,
+    \\        unloadEventStart: 0, unloadEventEnd: 0,
+    \\        domInteractive: 200, domContentLoadedEventStart: 200,
+    \\        domContentLoadedEventEnd: 210, domComplete: now - 50,
+    \\        loadEventStart: now - 50, loadEventEnd: now - 40,
+    \\        type: 'navigate', serverTiming: [],
+    \\        toJSON: function() {
+    \\          var o = {}; for (var k in this) if (typeof this[k] !== 'function') o[k] = this[k]; return o;
+    \\        }
+    \\      }];
+    \\    }
+    \\    return real;
+    \\  };
+    \\  performance.getEntries = function() {
+    \\    _scanExistingResources();
+    \\    return (_origGetEntries() || []).concat(_resEntries);
+    \\  };
+    \\  performance.getEntriesByName = function(name, type) {
+    \\    _scanExistingResources();
+    \\    var real = _origGetByName(name, type);
+    \\    if (!type || type === 'resource') {
+    \\      var matched = _resEntries.filter(function(e) { return e.name === name; });
+    \\      return (real || []).concat(matched);
+    \\    }
+    \\    return real;
+    \\  };
+    \\})();
+    \\
+    // PerformanceObserver.supportedEntryTypes — Chrome returns a full list
+    \\if (typeof PerformanceObserver !== 'undefined') {
+    \\  Object.defineProperty(PerformanceObserver, 'supportedEntryTypes', {
+    \\    get: function() { return ['element','event','first-input','largest-contentful-paint','layout-shift','long-animation-frame','longtask','mark','measure','navigation','paint','resource','visibility-state']; },
+    \\    configurable: true
+    \\  });
+    \\}
+    \\
+    // Lock navigator.webdriver to false (Chrome returns false when not under automation)
     \\Object.defineProperty(navigator, 'webdriver', {
-    \\  get: () => false, configurable: false, enumerable: true
+    \\  get: () => false, configurable: true, enumerable: true
     \\});
     // Override getBattery to return a proper BatteryManager stub
     // Chrome always resolves getBattery() — rejection is a detection vector
@@ -982,7 +1174,7 @@ pub const script: [:0]const u8 =
     \\    if(!(n in window))try{window[n]=_mkCtor(n)}catch(e){}
     \\  });
     \\  // Navigator stubs
-    \\  var navStubs = {bluetooth:{},clipboard:{readText:function(){return Promise.resolve('')},writeText:function(){return Promise.resolve()}},connection:{effectiveType:'4g',downlink:10,rtt:50,saveData:false,type:'wifi'},credentials:{get:function(){return Promise.resolve(null)},create:function(){return Promise.resolve(null)},store:function(){return Promise.resolve()}},geolocation:{getCurrentPosition:function(){},watchPosition:function(){return 0},clearWatch:function(){}},locks:{request:function(){return Promise.resolve()},query:function(){return Promise.resolve({held:[],pending:[]})}},mediaCapabilities:{decodingInfo:function(){return Promise.resolve({supported:true,smooth:true,powerEfficient:true})}},mediaSession:{setActionHandler:function(){},metadata:null,playbackState:'none'},permissions:{query:function(){return Promise.resolve({state:'prompt'})}},storage:{estimate:function(){return Promise.resolve({usage:0,quota:1073741824})}},usb:{getDevices:function(){return Promise.resolve([])},requestDevice:function(){return Promise.reject(new DOMException('','NotFoundError'))}},serial:{getPorts:function(){return Promise.resolve([])}},hid:{getDevices:function(){return Promise.resolve([])}},gpu:undefined,ink:undefined,keyboard:{lock:function(){return Promise.resolve()},unlock:function(){}},wakeLock:{request:function(){return Promise.reject(new DOMException('','NotAllowedError'))}},pdfViewerEnabled:true,doNotTrack:null,maxTouchPoints:0,webdriver:false,scheduling:{isInputPending:function(){return false}},userActivation:{hasBeenActive:false,isActive:false}};
+    \\  var navStubs = {bluetooth:{},clipboard:{readText:function(){return Promise.resolve('')},writeText:function(){return Promise.resolve()}},connection:{effectiveType:'4g',downlink:10,rtt:50,saveData:false,type:'wifi'},credentials:{get:function(){return Promise.resolve(null)},create:function(){return Promise.resolve(null)},store:function(){return Promise.resolve()}},geolocation:{getCurrentPosition:function(){},watchPosition:function(){return 0},clearWatch:function(){}},locks:{request:function(){return Promise.resolve()},query:function(){return Promise.resolve({held:[],pending:[]})}},mediaCapabilities:{decodingInfo:function(){return Promise.resolve({supported:true,smooth:true,powerEfficient:true})}},mediaSession:{setActionHandler:function(){},metadata:null,playbackState:'none'},permissions:{query:function(){return Promise.resolve({state:'prompt'})}},storage:{estimate:function(){return Promise.resolve({usage:Math.floor(Math.random()*500000)+100000,quota:63113641984})}},usb:{getDevices:function(){return Promise.resolve([])},requestDevice:function(){return Promise.reject(new DOMException('','NotFoundError'))}},serial:{getPorts:function(){return Promise.resolve([])}},hid:{getDevices:function(){return Promise.resolve([])}},gpu:undefined,ink:undefined,keyboard:{lock:function(){return Promise.resolve()},unlock:function(){}},wakeLock:{request:function(){return Promise.reject(new DOMException('','NotAllowedError'))}},pdfViewerEnabled:true,doNotTrack:null,maxTouchPoints:0,webdriver:false,scheduling:{isInputPending:function(){return false}},userActivation:{hasBeenActive:false,isActive:false}};
     \\  Object.keys(navStubs).forEach(function(k){
     \\    if(!(k in navigator))try{Object.defineProperty(navigator,k,{value:navStubs[k],configurable:true,enumerable:true})}catch(e){}
     \\  });

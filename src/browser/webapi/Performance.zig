@@ -19,18 +19,17 @@ _navigation: PerformanceNavigation = .{},
 var _last_timestamp: u64 = 0;
 
 /// Get high-resolution timestamp in nanoseconds.
-/// Chrome's performance.now() has ~5μs resolution but ALWAYS advances
-/// between consecutive calls. We ensure this by tracking the last value
-/// and advancing by at least 100ns (0.0001ms) — well within Chrome's
-/// normal variance.
+/// Chrome on Linux rounds to ~5μs (Spectre mitigation: crossOriginIsolatedCapability).
+/// We match this resolution to avoid fingerprinting. Must always advance between
+/// consecutive calls.
 fn highResTimestamp() u64 {
     const ts = datetime.timespec();
     const nanos = @as(u64, @intCast(ts.sec)) * 1_000_000_000 + @as(u64, @intCast(ts.nsec));
-    // Round to nearest 100 nanoseconds (0.1μs) for realistic precision
-    var rounded = @divTrunc(nanos + 50, 100) * 100;
-    // Ensure strictly monotonic — always advance by at least 100ns
+    // Round to nearest 5 microseconds (5000ns) — matches Chrome Linux
+    var rounded = @divTrunc(nanos + 2500, 5000) * 5000;
+    // Ensure strictly monotonic — always advance by at least 5μs
     if (rounded <= _last_timestamp) {
-        rounded = _last_timestamp + 100;
+        rounded = _last_timestamp + 5000;
     }
     _last_timestamp = rounded;
     return rounded;

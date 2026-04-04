@@ -82,6 +82,24 @@ pub fn init(input: Input, options: ?InitOpts, page: *Page) !js.Promise {
     }
     try page.headersForRequest(&headers);
 
+    // Add Origin header for non-GET/HEAD requests (per Fetch spec)
+    if (request._method != .GET and request._method != .HEAD) {
+        if (page.origin) |origin| {
+            const origin_header = try std.mem.concatWithSentinel(page.call_arena, u8, &.{ "Origin: ", origin }, 0);
+            try headers.add(origin_header);
+        }
+    }
+
+    // Sec-Fetch-* headers — Chrome always sends these for fetch requests
+    try headers.add("Sec-Fetch-Dest: empty");
+    try headers.add("Sec-Fetch-Mode: cors");
+    const is_same_origin = page.isSameOrigin(request._url) catch false;
+    if (is_same_origin) {
+        try headers.add("Sec-Fetch-Site: same-origin");
+    } else {
+        try headers.add("Sec-Fetch-Site: cross-site");
+    }
+
     if (comptime IS_DEBUG) {
         log.debug(.http, "fetch", .{ .url = request._url });
     }

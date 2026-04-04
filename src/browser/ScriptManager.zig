@@ -139,6 +139,10 @@ fn clearList(list: *std.DoublyLinkedList) void {
 fn getHeaders(self: *ScriptManager) !http.Headers {
     var headers = try self.client.newHeaders();
     try self.page.headersForRequest(&headers);
+    // Sec-Fetch-* headers — Chrome sends these for all resource loads
+    try headers.add("Sec-Fetch-Dest: script");
+    try headers.add("Sec-Fetch-Mode: no-cors");
+    try headers.add("Sec-Fetch-Site: cross-site");
     return headers;
 }
 

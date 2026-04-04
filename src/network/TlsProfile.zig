@@ -156,10 +156,10 @@ pub const TlsProfile = struct {
         libcurl.curl_easy_setopt(easy, .ssl_ctx_data, @as(?*anyopaque, null)) catch {};
     }
 
-    /// Chrome 131 TLS fingerprint profile.
-    /// Cipher suites and curves match Chrome's ClientHello.
-    pub const chrome_131: TlsProfile = .{
-        .name = "chrome_131",
+    /// Chrome 146 TLS fingerprint profile.
+    /// Cipher suites, curves, sigalgs, ECH GREASE, and ALPS match Chrome 146.
+    pub const chrome_146: TlsProfile = .{
+        .name = "chrome_146",
         .cipher_list = "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:" ++
             "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:" ++
             "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:" ++
@@ -186,11 +186,11 @@ pub const TlsProfile = struct {
         .http_version = 4,
     };
 
-    /// Default profile — uses Chrome 131.
-    pub const default = chrome_131;
+    /// Default profile — Chrome 146.
+    pub const default = chrome_146;
 
     pub fn fromName(name: []const u8) ?*const TlsProfile {
-        if (std.mem.eql(u8, name, "chrome") or std.mem.eql(u8, name, "chrome_131")) return &chrome_131;
+        if (std.mem.eql(u8, name, "chrome") or std.mem.eql(u8, name, "chrome_146") or std.mem.eql(u8, name, "chrome_131")) return &chrome_146;
         if (std.mem.eql(u8, name, "firefox") or std.mem.eql(u8, name, "firefox_133")) return &firefox_133;
         return null;
     }

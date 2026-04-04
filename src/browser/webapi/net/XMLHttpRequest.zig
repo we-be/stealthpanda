@@ -256,8 +256,9 @@ pub fn send(self: *XMLHttpRequest, body_: ?[]const u8) !void {
 
     try self._request_headers.populateHttpHeader(page.call_arena, &headers);
 
-    // Add Origin header for cross-origin requests (per Fetch spec)
-    if (!cookie_support and self._method == .POST) {
+    // Add Origin header for POST/PUT/PATCH/DELETE requests (per Fetch spec)
+    // Chrome always sends Origin for non-GET/HEAD requests, regardless of CORS
+    if (self._method == .POST or self._method == .PUT or self._method == .PATCH or self._method == .DELETE) {
         if (page.origin) |origin| {
             const origin_header = try std.mem.concatWithSentinel(page.call_arena, u8, &.{ "Origin: ", origin }, 0);
             try headers.add(origin_header);
@@ -266,6 +267,16 @@ pub fn send(self: *XMLHttpRequest, body_: ?[]const u8) !void {
 
     if (cookie_support) {
         try page.headersForRequest(&headers);
+    }
+
+    // Sec-Fetch-* headers — Chrome always sends these for XHR/fetch
+    try headers.add("Sec-Fetch-Dest: empty");
+    try headers.add("Sec-Fetch-Mode: cors");
+    const is_same_origin = page.isSameOrigin(self._url) catch false;
+    if (is_same_origin) {
+        try headers.add("Sec-Fetch-Site: same-origin");
+    } else {
+        try headers.add("Sec-Fetch-Site: cross-site");
     }
 
     self.acquireRef();
