@@ -101,35 +101,6 @@ pub const script: [:0]const u8 =
     \\        }
     \\        if (e.data.event === 'fail') {
     \\          console.warn('RESULT_FAIL: ' + (e.data.code || 'none'));
-    \\          // After fail, manually try to submit the challenge form
-    \\          // The orchestrate script should do this but doesn't in our browser
-    \\          if (window._cf_chl_opt && e.data.cfChlOut) {
-    \\            setTimeout(function() {
-    \\              try {
-    \\                var opt = window._cf_chl_opt;
-    \\                var form = document.createElement('form');
-    \\                form.method = 'POST';
-    \\                form.action = opt.fa || '';
-    \\                // Add cfChlOut as hidden input
-    \\                var inp1 = document.createElement('input');
-    \\                inp1.type = 'hidden'; inp1.name = 'cf_chl_out'; inp1.value = e.data.cfChlOut || '';
-    \\                form.appendChild(inp1);
-    \\                // Add md (challenge metadata)
-    \\                var inp2 = document.createElement('input');
-    \\                inp2.type = 'hidden'; inp2.name = 'md'; inp2.value = opt.md || '';
-    \\                form.appendChild(inp2);
-    \\                // Add mdrd
-    \\                var inp3 = document.createElement('input');
-    \\                inp3.type = 'hidden'; inp3.name = 'mdrd'; inp3.value = opt.mdrd || '';
-    \\                form.appendChild(inp3);
-    \\                document.body.appendChild(form);
-    \\                console.warn('SUBMITTING_FAIL_FORM: action=' + form.action.substring(0,60));
-    \\                form.submit();
-    \\              } catch(ex) {
-    \\                console.warn('FORM_SUBMIT_ERR: ' + ex.message);
-    \\              }
-    \\            }, 1000);
-    \\          }
     \\        }
     \\        if (e.data.event === 'turnstileResults') console.warn('RESULT_OK: token=' + String(e.data.token || '').substring(0,30));
     \\        console.warn('PAR_IN: ' + e.data.event + extra);
