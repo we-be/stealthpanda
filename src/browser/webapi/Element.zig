@@ -1169,11 +1169,27 @@ pub fn getBoundingClientRect(self: *Element, page: *Page) DOMRect {
 // Some cases need a the BoundingClientRect but have already done the
 // visibility check.
 pub fn getBoundingClientRectForVisible(self: *Element, page: *Page) DOMRect {
-    const y = calculateDocumentPosition(self.asNode());
+    const raw_y = calculateDocumentPosition(self.asNode());
     const dims = self.getElementDimensions(page);
+    const raw_x = calculateSiblingPosition(self.asNode());
 
-    // Use sibling position for x coordinate to ensure siblings have different x values
-    const x = calculateSiblingPosition(self.asNode());
+    // Cap positions within viewport bounds for realistic layout appearance.
+    // Without real CSS layout, raw positions can exceed viewport dimensions
+    // which is detectable by fingerprinters (e.g., CF Turnstile checks widget
+    // position relative to window.innerWidth).
+    const vw: f64 = @floatFromInt(page._session.browser.app.config.screenWidth());
+    const vh: f64 = @floatFromInt(page._session.browser.app.config.screenHeight());
+
+    // Use modulo-like wrapping to keep positions within viewport while
+    // maintaining relative ordering between elements
+    const x = if (raw_x + dims.width > vw)
+        @mod(raw_x, vw - dims.width) + dims.width * 0.5
+    else
+        raw_x;
+
+    // Cap y within reasonable scrollable page height (3x viewport)
+    const max_y = vh * 3.0;
+    const y = if (raw_y > max_y) @mod(raw_y, max_y) else raw_y;
 
     return .{
         ._x = x,
