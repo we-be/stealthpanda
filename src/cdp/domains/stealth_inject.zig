@@ -139,6 +139,19 @@ pub const script: [:0]const u8 =
     \\  window.addEventListener('error', function(e) {
     \\    console.warn('IF_ERR: ' + (e.message || '') + ' at ' + (e.filename || '').slice(-40) + ':' + e.lineno);
     \\  });
+    \\  // Track WebGL getParameter calls to see what CF checks
+    \\  try {
+    \\    var _origGlGetParam = WebGLRenderingContext.prototype.getParameter;
+    \\    if (_origGlGetParam) {
+    \\      var _glCalls = 0;
+    \\      WebGLRenderingContext.prototype.getParameter = function(pname) {
+    \\        var result = _origGlGetParam.call(this, pname);
+    \\        _glCalls++;
+    \\        if (_glCalls <= 10) console.warn('GL: 0x' + pname.toString(16) + '=' + String(result).substring(0,30));
+    \\        return result;
+    \\      };
+    \\    }
+    \\  } catch(e) {}
     \\  window.addEventListener('unhandledrejection', function(e) {
     \\    var r = e.reason || {};
     \\    var msg = r.message || String(r);
