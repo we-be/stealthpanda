@@ -173,6 +173,10 @@ pub const script: [:0]const u8 =
     \\        var elapsed2 = Date.now() - _flowStartTime;
     \\        var rspBody = rsp.length <= 50 ? rsp : rsp.substring(0,50);
     \\        var allHdrs = (xhr.getAllResponseHeaders() || '').replace(/\r?\n/g, ' | ');
+    \\        if (flowNum <= 1) {
+    \\          var chlGen = xhr.getResponseHeader('cf-chl-gen');
+    \\          console.warn('CHL_GEN: len=' + (chlGen ? chlGen.length : 'null'));
+    \\        }
     \\        if (xhr.status >= 400) { console.warn('FAIL_HDRS: ' + allHdrs); }
     \\        allHdrs = allHdrs.substring(0, 200);
     \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length + ' body=' + rspBody + ' hdrs=' + allHdrs);
