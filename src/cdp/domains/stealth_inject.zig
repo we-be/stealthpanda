@@ -92,7 +92,17 @@ pub const script: [:0]const u8 =
     \\            console.warn('PAR_WPR2: ' + wp.substring(120,240));
     \\          } catch(ex) {}
     \\        }
-    \\        if (e.data.event === 'fail') console.warn('RESULT_FAIL: ' + (e.data.code || 'none'));
+    \\        if (e.data.event === 'fail') {
+    \\          console.warn('RESULT_FAIL: ' + (e.data.code || 'none'));
+    \\          // After fail, check if the orchestrate script submits a form
+    \\          setTimeout(function() {
+    \\            var forms = document.querySelectorAll('form');
+    \\            console.warn('FORMS_AFTER_FAIL: ' + forms.length);
+    \\            for (var i = 0; i < forms.length; i++) {
+    \\              console.warn('FORM' + i + ': action=' + (forms[i].action || '').substring(0,60) + ' method=' + forms[i].method);
+    \\            }
+    \\          }, 2000);
+    \\        }
     \\        if (e.data.event === 'turnstileResults') console.warn('RESULT_OK: token=' + String(e.data.token || '').substring(0,30));
     \\        console.warn('PAR_IN: ' + e.data.event + extra);
     \\      }
