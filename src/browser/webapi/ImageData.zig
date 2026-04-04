@@ -95,6 +95,63 @@ pub fn getData(self: *const ImageData) js.ArrayBufferRef(.uint8_clamped).Global 
     return self._data;
 }
 
+/// Create an ImageData and fill its pixel buffer from a z2d surface.
+/// This is the key function for canvas getImageData() — it must return
+/// actual pixel data, not zeros, for canvas fingerprinting to work.
+pub fn initFromSurface(
+    width: u32,
+    height: u32,
+    src_pixels: []const u8,
+    src_width: usize,
+    src_height: usize,
+    sx: usize,
+    sy: usize,
+    page: *Page,
+) !*ImageData {
+    const max_i32 = std.math.maxInt(i32);
+    if (width == 0 or width > max_i32 or height == 0 or height > max_i32) {
+        return error.IndexSizeError;
+    }
+
+    // Create the ImageData (zero-initialized typed array)
+    const image_data = try init(width, height, null, page);
+
+    // Get the backing store data pointer to write pixels directly
+    const local = page.js.local.?;
+    const ref = image_data._data.local(local);
+    // Access the ArrayBuffer through the ArrayBufferView (typed array → array buffer → backing store)
+    const v8 = js.v8;
+    const ab = v8.v8__ArrayBufferView__Buffer(@ptrCast(ref.handle)) orelse return image_data;
+    const shared_ptr = v8.v8__ArrayBuffer__GetBackingStore(ab);
+    const bs_handle = v8.std__shared_ptr__v8__BackingStore__get(&shared_ptr) orelse return image_data;
+    const data_ptr: ?*anyopaque = v8.v8__BackingStore__Data(bs_handle);
+    if (data_ptr == null) return image_data;
+
+    const dst: [*]u8 = @ptrCast(data_ptr.?);
+    const uw: usize = @intCast(width);
+    const uh: usize = @intCast(height);
+
+    // Copy pixels from source surface
+    for (0..uh) |row| {
+        const src_y = sy + row;
+        if (src_y >= src_height) break;
+        for (0..uw) |col| {
+            const src_x = sx + col;
+            if (src_x >= src_width) break;
+            const src_idx = (src_y * src_width + src_x) * 4;
+            const dst_idx = (row * uw + col) * 4;
+            if (src_idx + 3 < src_pixels.len) {
+                dst[dst_idx] = src_pixels[src_idx]; // R
+                dst[dst_idx + 1] = src_pixels[src_idx + 1]; // G
+                dst[dst_idx + 2] = src_pixels[src_idx + 2]; // B
+                dst[dst_idx + 3] = src_pixels[src_idx + 3]; // A
+            }
+        }
+    }
+
+    return image_data;
+}
+
 pub const JsApi = struct {
     pub const bridge = js.Bridge(ImageData);
 
