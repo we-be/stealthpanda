@@ -195,6 +195,16 @@ pub fn getInnerHeight(self: *const Window) u32 {
     return self._page._session.browser.app.config.screenHeight();
 }
 
+/// outerWidth includes browser chrome — always larger than innerWidth
+pub fn getOuterWidth(self: *const Window) u32 {
+    return self._page._session.browser.app.config.screenWidth() + 20;
+}
+
+/// outerHeight includes browser chrome (title bar, etc.)
+pub fn getOuterHeight(self: *const Window) u32 {
+    return self._page._session.browser.app.config.screenHeight() + 80;
+}
+
 pub fn getVisualViewport(self: *const Window) *VisualViewport {
     return self._visual_viewport;
 }
@@ -1047,8 +1057,8 @@ pub const JsApi = struct {
 
     pub const innerWidth = bridge.accessor(Window.getInnerWidth, null, .{});
     pub const innerHeight = bridge.accessor(Window.getInnerHeight, null, .{});
-    pub const outerWidth = bridge.accessor(Window.getInnerWidth, null, .{});
-    pub const outerHeight = bridge.accessor(Window.getInnerHeight, null, .{});
+    pub const outerWidth = bridge.accessor(Window.getOuterWidth, null, .{});
+    pub const outerHeight = bridge.accessor(Window.getOuterHeight, null, .{});
     pub const chrome = bridge.accessor(Window.getChrome, null, .{});
     pub const speechSynthesis = bridge.accessor(Window.getSpeechSynthesis, null, .{});
     pub const devicePixelRatio = bridge.property(1, .{ .template = false });
