@@ -624,10 +624,9 @@ pub const script: [:0]const u8 =
     \\      postMessage: function(data) {
     \\        if (!_code) {
     \\          _pmRetries++;
-    \\          if (_pmRetries <= 3 || _pmRetries % 20 === 0) {
-    \\            console.warn('IF_WORKER: pm retry ' + _pmRetries + ' (code not loaded)');
+    \\          if (_pmRetries <= 5) {
+    \\            setTimeout(function() { worker.postMessage(data); }, 10);
     \\          }
-    \\          setTimeout(function() { worker.postMessage(data); }, 50);
     \\          return;
     \\        }
     \\        try {
