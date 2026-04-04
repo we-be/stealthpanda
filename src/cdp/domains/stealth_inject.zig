@@ -75,6 +75,11 @@ pub const script: [:0]const u8 =
     \\    } catch(e) {}
     \\  }
     \\})();
+    // Log challenge metadata sizes
+    \\if (window === window.top && window._cf_chl_opt) {
+    \\  var o = window._cf_chl_opt;
+    \\  console.warn('CF_OPT: md=' + (o.md||'').length + ' mdrd=' + (o.mdrd||'').length + ' cH=' + (o.cH||'').length + ' cType=' + o.cType + ' ver=' + o.cTplV);
+    \\}
     // Parent-side: track errors and Turnstile events
     \\if (window === window.top) {
     \\  window.addEventListener('error', function(e) {
