@@ -19,24 +19,19 @@ _navigation: PerformanceNavigation = .{},
 var _last_timestamp: u64 = 0;
 
 /// Get high-resolution timestamp in nanoseconds.
-/// Chrome on Linux rounds to ~5μs (Spectre mitigation: crossOriginIsolatedCapability).
-/// Must always advance between consecutive calls with natural variance.
-/// CF Turnstile Worker probes timer resolution by calling performance.now() 5000 times
-/// and measuring minimum delta — perfectly constant 5μs deltas are a fingerprint.
+/// Chrome headless on Linux rounds to ~100μs (0.1ms). Confirmed via CF Turnstile
+/// Worker timer test: Chrome reports kPVx7=0.09999999403953552 (~100μs).
+/// Previously we used 5μs which was too precise for headless mode.
 fn highResTimestamp() u64 {
     const ts = datetime.timespec();
     const nanos = @as(u64, @intCast(ts.sec)) * 1_000_000_000 + @as(u64, @intCast(ts.nsec));
-    // Round to nearest 5 microseconds (5000ns) — matches Chrome Linux
-    var rounded = @divTrunc(nanos + 2500, 5000) * 5000;
-    // Ensure strictly monotonic with natural jitter.
-    // Real Chrome timers sometimes skip 5μs buckets due to OS scheduling.
-    // Mix in a simple hash of the raw nanos to occasionally skip a bucket.
+    // Round to nearest 100 microseconds (100000ns) — matches Chrome headless
+    var rounded = @divTrunc(nanos + 50000, 100000) * 100000;
+    // Ensure strictly monotonic with natural jitter
     if (rounded <= _last_timestamp) {
-        // Occasionally advance by 10μs or 15μs instead of always 5μs
-        const jitter_seed = nanos ^ (_last_timestamp >> 3);
-        const extra = if (jitter_seed & 0x7 == 0) @as(u64, 10000) // ~12.5% chance of +10μs
-            else if (jitter_seed & 0xF == 0) @as(u64, 15000) // ~6.25% chance of +15μs
-            else @as(u64, 5000); // ~81% chance of +5μs
+        const jitter_seed = nanos ^ (_last_timestamp >> 5);
+        const extra = if (jitter_seed & 0x3 == 0) @as(u64, 200000) // ~25% chance of +200μs
+            else @as(u64, 100000); // ~75% chance of +100μs
         rounded = _last_timestamp + extra;
     }
     _last_timestamp = rounded;

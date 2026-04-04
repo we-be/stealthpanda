@@ -57,6 +57,11 @@ pub fn getLanguages(_: *const Navigator) [2][]const u8 {
     return .{ "en-US", "en" };
 }
 
+pub fn getHardwareConcurrency(_: *const Navigator) u32 {
+    // Return actual CPU count — Chrome reports real value
+    return @intCast(std.Thread.getCpuCount() catch 4);
+}
+
 pub fn getPlatform(_: *const Navigator) []const u8 {
     return switch (builtin.os.tag) {
         .macos => "MacIntel",
@@ -191,7 +196,7 @@ pub const JsApi = struct {
     pub const languages = bridge.accessor(Navigator.getLanguages, null, .{});
     pub const onLine = bridge.property(true, .{ .template = false });
     pub const cookieEnabled = bridge.property(true, .{ .template = false });
-    pub const hardwareConcurrency = bridge.property(4, .{ .template = false });
+    pub const hardwareConcurrency = bridge.accessor(Navigator.getHardwareConcurrency, null, .{});
     pub const deviceMemory = bridge.property(@as(f64, 8.0), .{ .template = false });
     pub const maxTouchPoints = bridge.property(0, .{ .template = false });
     pub const vendor = bridge.property("Google Inc.", .{ .template = false });
