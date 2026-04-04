@@ -344,7 +344,7 @@ pub const HttpHeaders = struct {
         // Client Hints headers — must match the UA string
         const sec_ch_ua_header: [:0]const u8 = try std.fmt.allocPrintSentinel(
             allocator,
-            "sec-ch-ua: \"Chromium\";v=\"146\", \"Google Chrome\";v=\"146\", \"Not_A Brand\";v=\"24\"",
+            "sec-ch-ua: \"Chromium\";v=\"146\", \"Not-A.Brand\";v=\"24\", \"Google Chrome\";v=\"146\"",
             .{},
             0,
         );
