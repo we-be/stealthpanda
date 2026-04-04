@@ -112,35 +112,49 @@ pub const script: [:0]const u8 =
     \\      }
     \\    }
     \\  });
-    \\  // Track extraParams sent to CF iframe — MutationObserver catches iframe creation
+    \\  // Debug: check PerformanceObserver and currentScript on the parent page
+    \\  // The api.js ta() function needs: typeof PerformanceObserver == 'function' && Ue() != null
+    \\  var _origGetByTypePar = performance.getEntriesByType.bind(performance);
+    \\  // After the Turnstile script loads, check what ta() would see
+    \\  console.warn('PAR_EARLY: readyState=' + document.readyState + ' PO=' + typeof PerformanceObserver + ' PRT=' + typeof PerformanceResourceTiming);
+    \\  document.addEventListener('DOMContentLoaded', function() {
+    \\    try {
+    \\      var scripts = document.querySelectorAll('script[src*="challenges.cloudflare.com"]');
+    \\      var found = scripts.length;
+    \\      var resEntries = _origGetByTypePar('resource');
+    \\      var cfEntries = [];
+    \\      for (var i = 0; i < resEntries.length; i++) {
+    \\        if (resEntries[i].name && resEntries[i].name.indexOf('cloudflare') >= 0) cfEntries.push(resEntries[i].name);
+    \\      }
+    \\      console.warn('PAR_DIAG: cfScripts=' + found + ' resTotal=' + resEntries.length + ' cfRes=' + cfEntries.length + ' PO=' + typeof PerformanceObserver);
+    \\      if (cfEntries.length > 0) console.warn('PAR_DIAG_RES: ' + cfEntries[0].substring(0,80));
+    \\    } catch(e) { console.warn('PAR_DIAG_ERR: ' + e.message); }
+    \\  });
+    \\  // Patch Window.prototype.postMessage to intercept extraParams messages
+    \\  // and inject apiJsResourceTiming if missing. This catches ALL postMessage
+    \\  // calls to any window (including iframe contentWindows).
     \\  try {
-    \\    var _epObs = new MutationObserver(function(muts) {
-    \\      muts.forEach(function(m) {
-    \\        m.addedNodes.forEach(function(n) {
-    \\          try {
-    \\            if (n.tagName === 'IFRAME' && n.src && n.src.indexOf('challenges.cloudflare.com') >= 0) {
-    \\              n.addEventListener('load', function() {
-    \\                try {
-    \\                  var cw = n.contentWindow;
-    \\                  if (!cw) return;
-    \\                  var origCWPM = cw.postMessage.bind(cw);
-    \\                  cw.postMessage = function(msg, origin) {
-    \\                    if (msg && typeof msg === 'object' && msg.event === 'extraParams') {
-    \\                      console.warn('PAR_OUT_EXTRA: keys=' + Object.keys(msg).sort().join(','));
-    \\                      if (msg.apiJsResourceTiming) console.warn('PAR_OUT_RT: ' + JSON.stringify(msg.apiJsResourceTiming).substring(0,200));
-    \\                      if (msg.wPr) console.warn('PAR_OUT_WPR: ' + JSON.stringify(msg.wPr).substring(0,300));
-    \\                    }
-    \\                    return origCWPM(msg, origin);
-    \\                  };
-    \\                } catch(ex) {}
-    \\              });
-    \\            }
-    \\          } catch(ex) {}
-    \\        });
-    \\      });
-    \\    });
-    \\    var _epTarget = document.documentElement || document.body || document;
-    \\    if (_epTarget) _epObs.observe(_epTarget, {childList: true, subtree: true});
+    \\    var _origWinPM = Window.prototype.postMessage;
+    \\    Window.prototype.postMessage = function(msg, targetOrigin) {
+    \\      if (msg && typeof msg === 'object' && msg.event === 'extraParams' && msg.source === 'cloudflare-challenge') {
+    \\        if (!msg.apiJsResourceTiming && msg.au) {
+    \\          var st = Math.random() * 100 + 30;
+    \\          var dur = Math.random() * 80 + 30;
+    \\          msg.apiJsResourceTiming = {
+    \\            name: msg.au, entryType: 'resource', startTime: st,
+    \\            duration: dur, initiatorType: 'script', nextHopProtocol: 'h2',
+    \\            workerStart: 0, redirectStart: 0, redirectEnd: 0,
+    \\            fetchStart: st, domainLookupStart: st+1, domainLookupEnd: st+3,
+    \\            connectStart: st+3, connectEnd: st+15, secureConnectionStart: st+5,
+    \\            requestStart: st+15, responseStart: st+dur*0.3, responseEnd: st+dur,
+    \\            transferSize: 52567, encodedBodySize: 36800, decodedBodySize: 52567,
+    \\            serverTiming: []
+    \\          };
+    \\          console.warn('AJRT_INJECTED');
+    \\        }
+    \\      }
+    \\      return _origWinPM.apply(this, arguments);
+    \\    };
     \\  } catch(e) {}
     \\}
     // Iframe instrumentation
@@ -164,7 +178,7 @@ pub const script: [:0]const u8 =
     \\        if (e.data.apiJsResourceTiming) {
     \\          try { console.warn('EXTRA_AJRT: ' + JSON.stringify(e.data.apiJsResourceTiming).substring(0,300)); } catch(ex) {}
     \\        } else {
-    \\          console.warn('EXTRA_AJRT: undefined');
+    \\          console.warn('EXTRA_AJRT: undefined (parent-side injection should fix this)');
     \\        }
     \\        console.warn('EXTRA_TIMES: init=' + e.data.timeInitMs + ' params=' + e.data.timeParamsMs + ' render=' + e.data.timeRenderMs + ' extra=' + e.data.timeExtraParamsMs);
     \\      } catch(ex) { console.warn('EXTRA_ERR: ' + ex.message); }
@@ -348,11 +362,14 @@ pub const script: [:0]const u8 =
     \\  // CF's api.js does: if (U(entry, PerformanceResourceTiming))
     \\  if (typeof PerformanceResourceTiming === 'undefined') {
     \\    window.PerformanceResourceTiming = function() { throw new TypeError('Illegal constructor'); };
-    \\    PerformanceResourceTiming.prototype = Object.create(PerformanceEntry ? PerformanceEntry.prototype : Object.prototype);
-    \\    PerformanceResourceTiming.prototype.constructor = PerformanceResourceTiming;
+    \\    // Use Symbol.hasInstance to make instanceof work on plain objects
+    \\    // (Can't use Object.create(PerformanceEntry.prototype) because name/entryType are read-only accessors)
+    \\    Object.defineProperty(PerformanceResourceTiming, Symbol.hasInstance, {
+    \\      value: function(obj) { return obj && obj.entryType === 'resource'; }
+    \\    });
     \\    Object.defineProperty(PerformanceResourceTiming.prototype, Symbol.toStringTag, {value: 'PerformanceResourceTiming', configurable: true});
     \\  }
-    \\  var _PRT = PerformanceResourceTiming;
+    \\  var _PRT = null; // Don't set prototype — just use Symbol.hasInstance
     \\  // Debug: verify instanceof works
     \\  try {
     \\    var _testEntry = Object.create(_PRT.prototype);
@@ -367,8 +384,7 @@ pub const script: [:0]const u8 =
     \\    var reqSt = ssl + Math.random() * 2;
     \\    var rspSt = reqSt + dur * 0.3;
     \\    var rspEnd = reqSt + dur;
-    \\    var entry = _PRT ? Object.create(_PRT.prototype) : {};
-    \\    Object.assign(entry, {
+    \\    var entry = {
     \\      name: url, entryType: 'resource', startTime: st,
     \\      duration: dur, initiatorType: initiator || 'script',
     \\      nextHopProtocol: 'h2',
@@ -383,7 +399,7 @@ pub const script: [:0]const u8 =
     \\      toJSON: function() {
     \\        var o = {}; for (var k in this) if (typeof this[k] !== 'function') o[k] = this[k]; return o;
     \\      }
-    \\    });
+    \\    };
     \\    return entry;
     \\  }
     \\  // Observe script insertions to generate resource entries
