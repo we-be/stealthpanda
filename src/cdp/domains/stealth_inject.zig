@@ -178,9 +178,8 @@ pub const script: [:0]const u8 =
     \\        var elapsed2 = Date.now() - _flowStartTime;
     \\        var rspBody = rsp.length <= 50 ? rsp : rsp.substring(0,50);
     \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length + ' body=' + rspBody);
-    \\        // For the final flow POST that fails, also log the full URL for replay
-    \\        if (xhr.status === 400) {
-    \\          console.warn('REJECTED_URL: ' + (xhr._stUrl || ''));
+    \\        if (xhr.status >= 400 && rsp.length > 2) {
+    \\          console.warn('REJECTED_BODY: ' + rsp.substring(0, 200));
     \\        }
     \\      });
     \\    }
