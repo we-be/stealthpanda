@@ -178,6 +178,10 @@ pub const script: [:0]const u8 =
     \\        var elapsed2 = Date.now() - _flowStartTime;
     \\        var rspBody = rsp.length <= 50 ? rsp : rsp.substring(0,50);
     \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length + ' body=' + rspBody);
+    \\        // For the final flow POST that fails, also log the full URL for replay
+    \\        if (xhr.status === 400) {
+    \\          console.warn('REJECTED_URL: ' + (xhr._stUrl || ''));
+    \\        }
     \\      });
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
@@ -728,7 +732,15 @@ pub const script: [:0]const u8 =
     \\      n.getByteTimeDomainData = function(a) { if(a) for(var i=0;i<a.length;i++) a[i]=128; };
     \\      return n;
     \\    });
-    \\    stubMethod('createOscillator', function() { return Object.create(noopNode); });
+    \\    stubMethod('createOscillator', function() {
+    \\      var n = Object.create(noopNode);
+    \\      n.type = 'sine';
+    \\      n.frequency = { value: 440, setValueAtTime: function(){}, linearRampToValueAtTime: function(){},
+    \\        exponentialRampToValueAtTime: function(){}, setTargetAtTime: function(){},
+    \\        cancelScheduledValues: function(){}, defaultValue: 440, minValue: -22050, maxValue: 22050 };
+    \\      n.detune = { value: 0, setValueAtTime: function(){}, defaultValue: 0, minValue: -153600, maxValue: 153600 };
+    \\      return n;
+    \\    });
     \\    stubMethod('createGain', function() {
     \\      var n = Object.create(noopNode);
     \\      n.gain = { value: 1, setValueAtTime: function() {}, linearRampToValueAtTime: function() {},
@@ -757,12 +769,74 @@ pub const script: [:0]const u8 =
     \\      n.buffer = null; n.loop = false; n.playbackRate = { value: 1 };
     \\      return n;
     \\    });
+    \\    stubMethod('createBuffer', function(channels, length, sampleRate) {
+    \\      return {
+    \\        length: length, sampleRate: sampleRate, numberOfChannels: channels, duration: length / sampleRate,
+    \\        getChannelData: function() { return new Float32Array(length); },
+    \\        copyFromChannel: function() {}, copyToChannel: function() {}
+    \\      };
+    \\    });
     \\    if (!('destination' in proto)) {
     \\      Object.defineProperty(proto, 'destination', {
     \\        get: function() { return Object.create(noopNode); }, configurable: true
     \\      });
     \\    }
     \\    window.webkitAudioContext = AudioContext;
+    \\  }
+    \\  // OfflineAudioContext — used for audio fingerprinting
+    \\  if (typeof OfflineAudioContext !== 'function' || !OfflineAudioContext.prototype.startRendering) {
+    \\    window.OfflineAudioContext = function(channels, length, sampleRate) {
+    \\      this.sampleRate = sampleRate || 44100;
+    \\      this.length = length || 44100;
+    \\      this.numberOfChannels = channels || 1;
+    \\      this.state = 'suspended';
+    \\      this.currentTime = 0;
+    \\    };
+    \\    var oacProto = OfflineAudioContext.prototype;
+    \\    // Inherit AudioContext methods
+    \\    if (typeof AudioContext === 'function') {
+    \\      var acProto = AudioContext.prototype;
+    \\      ['createOscillator','createGain','createAnalyser','createBiquadFilter',
+    \\       'createDynamicsCompressor','createScriptProcessor','createBufferSource',
+    \\       'createBuffer'].forEach(function(m) {
+    \\        if (acProto[m]) oacProto[m] = acProto[m];
+    \\      });
+    \\      Object.defineProperty(oacProto, 'destination', Object.getOwnPropertyDescriptor(acProto, 'destination') || {
+    \\        get: function() { return { channelCount: 1, maxChannelCount: 1 }; }
+    \\      });
+    \\    }
+    \\    oacProto.startRendering = function() {
+    \\      var self = this;
+    \\      self.state = 'running';
+    \\      return new Promise(function(resolve) {
+    \\        setTimeout(function() {
+    \\          self.state = 'closed';
+    \\          // Create a fake AudioBuffer with deterministic data
+    \\          var buf = { length: self.length, sampleRate: self.sampleRate, numberOfChannels: self.numberOfChannels,
+    \\            duration: self.length / self.sampleRate,
+    \\            getChannelData: function(ch) {
+    \\              var data = new Float32Array(self.length);
+    \\              // Fill with deterministic non-zero values (like a real audio render)
+    \\              for (var i = 0; i < data.length; i++) {
+    \\                data[i] = Math.sin(i * 0.01) * 0.0001;
+    \\              }
+    \\              return data;
+    \\            },
+    \\            copyFromChannel: function(dest, ch) {
+    \\              var src = this.getChannelData(ch);
+    \\              for (var i = 0; i < Math.min(dest.length, src.length); i++) dest[i] = src[i];
+    \\            }
+    \\          };
+    \\          if (self.oncomplete) self.oncomplete({renderedBuffer: buf});
+    \\          resolve(buf);
+    \\        }, 1);
+    \\      });
+    \\    };
+    \\    oacProto.resume = function() { this.state = 'running'; return Promise.resolve(); };
+    \\    oacProto.suspend = function() { this.state = 'suspended'; return Promise.resolve(); };
+    \\    oacProto.close = function() { this.state = 'closed'; return Promise.resolve(); };
+    \\    oacProto.addEventListener = function() {};
+    \\    oacProto.removeEventListener = function() {};
     \\  }
     \\})();
     \\

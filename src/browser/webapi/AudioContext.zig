@@ -7,7 +7,7 @@ const js = @import("../js/js.zig");
 const Page = @import("../Page.zig");
 
 pub fn registerTypes() []const type {
-    return &.{ AudioContext, BaseAudioContext, AnalyserNode, AudioDestinationNode, OscillatorNode, GainNode, BiquadFilterNode };
+    return &.{ AudioContext, BaseAudioContext, AudioParam, AnalyserNode, AudioDestinationNode, OscillatorNode, GainNode, BiquadFilterNode };
 }
 
 const AudioContext = @This();
@@ -43,15 +43,22 @@ pub fn createAnalyser(_: *AudioContext, page: *Page) !*AnalyserNode {
 }
 
 pub fn createOscillator(_: *AudioContext, page: *Page) !*OscillatorNode {
-    return page._factory.create(OscillatorNode{});
+    const freq = try page._factory.create(AudioParam{ .value = 440, .default_value = 440, .min_value = -22050, .max_value = 22050 });
+    const det = try page._factory.create(AudioParam{ .value = 0, .default_value = 0, .min_value = -153600, .max_value = 153600 });
+    return page._factory.create(OscillatorNode{ ._frequency = freq, ._detune = det });
 }
 
 pub fn createGain(_: *AudioContext, page: *Page) !*GainNode {
-    return page._factory.create(GainNode{});
+    const g = try page._factory.create(AudioParam{ .value = 1, .default_value = 1, .min_value = -3.4028235e+38, .max_value = 3.4028235e+38 });
+    return page._factory.create(GainNode{ ._gain = g });
 }
 
 pub fn createBiquadFilter(_: *AudioContext, page: *Page) !*BiquadFilterNode {
-    return page._factory.create(BiquadFilterNode{});
+    const freq = try page._factory.create(AudioParam{ .value = 350, .default_value = 350, .min_value = -22050, .max_value = 22050 });
+    const q = try page._factory.create(AudioParam{ .value = 1, .default_value = 1, .min_value = -3.4028235e+38, .max_value = 3.4028235e+38 });
+    const g = try page._factory.create(AudioParam{ .value = 0, .default_value = 0, .min_value = -3.4028235e+38, .max_value = 3.4028235e+38 });
+    const d = try page._factory.create(AudioParam{ .value = 0, .default_value = 0, .min_value = -153600, .max_value = 153600 });
+    return page._factory.create(BiquadFilterNode{ ._frequency = freq, ._q = q, ._gain_param = g, ._detune = d });
 }
 
 pub fn close(self: *AudioContext) void {
@@ -94,6 +101,50 @@ pub const JsApi = struct {
     pub const close = bridge.function(AudioContext.close, .{});
     pub const @"resume" = bridge.function(AudioContext.resume_, .{});
     pub const @"suspend" = bridge.function(AudioContext.suspend_, .{});
+};
+
+/// Stub AudioParam — used by OscillatorNode.frequency, GainNode.gain, etc.
+pub const AudioParam = struct {
+    value: f64 = 0,
+    default_value: f64 = 0,
+    min_value: f64 = -3.4028235e+38,
+    max_value: f64 = 3.4028235e+38,
+
+    pub fn getValue(self: *const AudioParam) f64 {
+        return self.value;
+    }
+    pub fn getDefaultValue(self: *const AudioParam) f64 {
+        return self.default_value;
+    }
+    pub fn getMinValue(self: *const AudioParam) f64 {
+        return self.min_value;
+    }
+    pub fn getMaxValue(self: *const AudioParam) f64 {
+        return self.max_value;
+    }
+    pub fn setValueAtTime(_: *AudioParam, _: f64, _: f64) void {}
+    pub fn linearRampToValueAtTime(_: *AudioParam, _: f64, _: f64) void {}
+    pub fn exponentialRampToValueAtTime(_: *AudioParam, _: f64, _: f64) void {}
+    pub fn setTargetAtTime(_: *AudioParam, _: f64, _: f64, _: f64) void {}
+    pub fn cancelScheduledValues(_: *AudioParam, _: f64) void {}
+
+    pub const JsApi = struct {
+        pub const bridge = js.Bridge(AudioParam);
+        pub const Meta = struct {
+            pub const name = "AudioParam";
+            pub const prototype_chain = bridge.prototypeChain();
+            pub var class_id: bridge.ClassId = undefined;
+        };
+        pub const value = bridge.accessor(AudioParam.getValue, null, .{});
+        pub const defaultValue = bridge.accessor(AudioParam.getDefaultValue, null, .{});
+        pub const minValue = bridge.accessor(AudioParam.getMinValue, null, .{});
+        pub const maxValue = bridge.accessor(AudioParam.getMaxValue, null, .{});
+        pub const setValueAtTime = bridge.function(AudioParam.setValueAtTime, .{ .noop = true });
+        pub const linearRampToValueAtTime = bridge.function(AudioParam.linearRampToValueAtTime, .{ .noop = true });
+        pub const exponentialRampToValueAtTime = bridge.function(AudioParam.exponentialRampToValueAtTime, .{ .noop = true });
+        pub const setTargetAtTime = bridge.function(AudioParam.setTargetAtTime, .{ .noop = true });
+        pub const cancelScheduledValues = bridge.function(AudioParam.cancelScheduledValues, .{ .noop = true });
+    };
 };
 
 pub const AnalyserNode = struct {
@@ -161,12 +212,28 @@ pub const AudioDestinationNode = struct {
 };
 
 pub const OscillatorNode = struct {
-    _pad: bool = false,
+    _type: []const u8 = "sine",
+    _frequency: *AudioParam = undefined,
+    _detune: *AudioParam = undefined,
 
+    pub fn getType(self: *const OscillatorNode) []const u8 {
+        return self._type;
+    }
+    pub fn setType(self: *OscillatorNode, t: []const u8) void {
+        self._type = t;
+    }
+    pub fn getFrequency(self: *const OscillatorNode) *AudioParam {
+        return self._frequency;
+    }
+    pub fn getDetune(self: *const OscillatorNode) *AudioParam {
+        return self._detune;
+    }
     pub fn connect(_: *const OscillatorNode) void {}
     pub fn disconnect(_: *const OscillatorNode) void {}
     pub fn start(_: *const OscillatorNode) void {}
     pub fn stop(_: *const OscillatorNode) void {}
+    pub fn addEventListener(_: *const OscillatorNode, _: []const u8) void {}
+    pub fn removeEventListener(_: *const OscillatorNode, _: []const u8) void {}
 
     pub const JsApi = struct {
         pub const bridge = js.Bridge(OscillatorNode);
@@ -175,16 +242,24 @@ pub const OscillatorNode = struct {
             pub const prototype_chain = bridge.prototypeChain();
             pub var class_id: bridge.ClassId = undefined;
         };
+        pub const @"type" = bridge.accessor(OscillatorNode.getType, OscillatorNode.setType, .{});
+        pub const frequency = bridge.accessor(OscillatorNode.getFrequency, null, .{});
+        pub const detune = bridge.accessor(OscillatorNode.getDetune, null, .{});
         pub const connect = bridge.function(OscillatorNode.connect, .{ .noop = true });
         pub const disconnect = bridge.function(OscillatorNode.disconnect, .{ .noop = true });
         pub const start = bridge.function(OscillatorNode.start, .{ .noop = true });
         pub const stop = bridge.function(OscillatorNode.stop, .{ .noop = true });
+        pub const addEventListener = bridge.function(OscillatorNode.addEventListener, .{ .noop = true });
+        pub const removeEventListener = bridge.function(OscillatorNode.removeEventListener, .{ .noop = true });
     };
 };
 
 pub const GainNode = struct {
-    _pad: bool = false,
+    _gain: *AudioParam = undefined,
 
+    pub fn getGain(self: *const GainNode) *AudioParam {
+        return self._gain;
+    }
     pub fn connect(_: *const GainNode) void {}
     pub fn disconnect(_: *const GainNode) void {}
 
@@ -195,14 +270,37 @@ pub const GainNode = struct {
             pub const prototype_chain = bridge.prototypeChain();
             pub var class_id: bridge.ClassId = undefined;
         };
+        pub const gain = bridge.accessor(GainNode.getGain, null, .{});
         pub const connect = bridge.function(GainNode.connect, .{ .noop = true });
         pub const disconnect = bridge.function(GainNode.disconnect, .{ .noop = true });
     };
 };
 
 pub const BiquadFilterNode = struct {
-    _pad: bool = false,
+    _type: []const u8 = "lowpass",
+    _frequency: *AudioParam = undefined,
+    _q: *AudioParam = undefined,
+    _gain_param: *AudioParam = undefined,
+    _detune: *AudioParam = undefined,
 
+    pub fn getType(self: *const BiquadFilterNode) []const u8 {
+        return self._type;
+    }
+    pub fn setType(self: *BiquadFilterNode, t: []const u8) void {
+        self._type = t;
+    }
+    pub fn getFrequencyParam(self: *const BiquadFilterNode) *AudioParam {
+        return self._frequency;
+    }
+    pub fn getQ(self: *const BiquadFilterNode) *AudioParam {
+        return self._q;
+    }
+    pub fn getBiquadGain(self: *const BiquadFilterNode) *AudioParam {
+        return self._gain_param;
+    }
+    pub fn getDetune(self: *const BiquadFilterNode) *AudioParam {
+        return self._detune;
+    }
     pub fn connect(_: *const BiquadFilterNode) void {}
     pub fn disconnect(_: *const BiquadFilterNode) void {}
     pub fn getFrequencyResponse(_: *const BiquadFilterNode) void {}
@@ -214,6 +312,11 @@ pub const BiquadFilterNode = struct {
             pub const prototype_chain = bridge.prototypeChain();
             pub var class_id: bridge.ClassId = undefined;
         };
+        pub const @"type" = bridge.accessor(BiquadFilterNode.getType, BiquadFilterNode.setType, .{});
+        pub const frequency = bridge.accessor(BiquadFilterNode.getFrequencyParam, null, .{});
+        pub const Q = bridge.accessor(BiquadFilterNode.getQ, null, .{});
+        pub const gain = bridge.accessor(BiquadFilterNode.getBiquadGain, null, .{});
+        pub const detune = bridge.accessor(BiquadFilterNode.getDetune, null, .{});
         pub const connect = bridge.function(BiquadFilterNode.connect, .{ .noop = true });
         pub const disconnect = bridge.function(BiquadFilterNode.disconnect, .{ .noop = true });
         pub const getFrequencyResponse = bridge.function(BiquadFilterNode.getFrequencyResponse, .{ .noop = true });
