@@ -132,6 +132,17 @@ pub const script: [:0]const u8 =
     \\    var _origWinPM = Window.prototype.postMessage;
     \\    Window.prototype.postMessage = function(msg, targetOrigin) {
     \\      if (msg && typeof msg === 'object' && msg.event === 'extraParams' && msg.source === 'cloudflare-challenge') {
+    \\        // Fix wPr widget position to be within viewport bounds
+    \\        if (msg.wPr && msg.wPr.pi && msg.wPr.pi.wp) {
+    \\          var parts = msg.wPr.pi.wp.split('|');
+    \\          var top = parseFloat(parts[0]) || 0;
+    \\          var right = parseFloat(parts[1]) || 0;
+    \\          var iw = msg.wPr['w.iW'] || window.innerWidth || 800;
+    \\          // Cap: top should be reasonable, right should be within viewport
+    \\          if (top > 1200) top = 600 + Math.random() * 200;
+    \\          if (right > iw) right = iw * 0.8 + Math.random() * (iw * 0.15);
+    \\          msg.wPr.pi.wp = top.toFixed(1) + '|' + right.toFixed(1);
+    \\        }
     \\        if (!msg.apiJsResourceTiming && msg.au) {
     \\          var st = Math.random() * 100 + 30;
     \\          var dur = Math.random() * 80 + 30;
