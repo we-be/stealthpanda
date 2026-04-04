@@ -344,7 +344,7 @@ pub const Connection = struct {
         // compression, don't remove this. CloudFront will send gzip content
         // even if we don't support it, and then it won't be decompressed.
         // empty string means: use whatever's available
-        try libcurl.curl_easy_setopt(self._easy, .accept_encoding, "");
+        try libcurl.curl_easy_setopt(self._easy, .accept_encoding, "gzip, deflate, br");
 
         // proxy
         const http_proxy = config.httpProxy();
