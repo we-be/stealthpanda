@@ -213,6 +213,15 @@ pub const script: [:0]const u8 =
     \\      var bodyStr = (typeof body === 'string') ? body : '';
     \\      var urlType = (this._stUrl || '').indexOf('chl_api_m') >= 0 ? 'API' : 'FLOW';
     \\      console.warn('IF_XHR: ' + urlType + ' f=' + flowNum + ' t=' + elapsed + 'ms len=' + (body ? body.length : 0));
+    \\      // For initial flow POST, analyze body characteristics
+    \\      if (urlType === 'FLOW' && flowNum === 1 && body && body.length > 3000) {
+    \\        var chars = {};
+    \\        for (var ci = 0; ci < body.length; ci++) chars[body[ci]] = 1;
+    \\        var uniq = Object.keys(chars).sort().join('');
+    \\        console.warn('OUR_BODY: len=' + body.length + ' unique=' + uniq.length + ' chars=' + uniq);
+    \\        console.warn('OUR_BODY_START: ' + body.substring(0,60));
+    \\        console.warn('OUR_BODY_END: ' + body.substring(body.length-60));
+    \\      }
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
