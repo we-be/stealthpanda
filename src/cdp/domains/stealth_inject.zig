@@ -160,12 +160,14 @@ pub const script: [:0]const u8 =
     \\  var _xhrFlowCount = 0;
     \\  var _flowStartTime = Date.now();
     \\  XMLHttpRequest.prototype.send = function(body) {
-    \\    // Track ALL challenge-related XHR requests (not just flow/ov1)
-    \\    if (this._stUrl && (this._stUrl.indexOf('/ov1') >= 0 || this._stUrl.indexOf('challenge') >= 0)) {
+    \\    // Track ALL challenge-related XHR requests
+    \\    if (this._stUrl && (this._stUrl.indexOf('/ov1') >= 0 || this._stUrl.indexOf('challenge') >= 0 || this._stUrl.indexOf('cdn-cgi') >= 0)) {
     \\      _xhrFlowCount++;
     \\      var flowNum = _xhrFlowCount;
     \\      var elapsed = Date.now() - _flowStartTime;
-    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + body.length);
+    \\      var urlEnd = (this._stUrl || '').split('/').slice(-2).join('/');
+    \\      var bodyPfx = (typeof body === 'string') ? body.substring(0,30) : '(non-string)';
+    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + (body ? body.length : 0) + ' url=' + urlEnd + ' pfx=' + bodyPfx);
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
