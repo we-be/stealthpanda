@@ -161,32 +161,43 @@ pub const script: [:0]const u8 =
     \\  var _origXHRSend = XMLHttpRequest.prototype.send;
     \\  var _origXHROpen = XMLHttpRequest.prototype.open;
     \\  XMLHttpRequest.prototype.open = function(m, u) { this._stUrl = u; return _origXHROpen.apply(this, arguments); };
+    \\  var _xhrFlowCount = 0;
+    \\  var _flowStartTime = Date.now();
     \\  XMLHttpRequest.prototype.send = function(body) {
     \\    if (this._stUrl && this._stUrl.indexOf('flow/ov1') >= 0 && body) {
-    \\      var highBytes = 0;
-    \\      for (var i = 0; i < body.length; i++) {
-    \\        if (body.charCodeAt(i) > 127) highBytes++;
-    \\      }
-    \\      console.warn('IF_BODY: len=' + body.length + ' high=' + highBytes + ' first30=' + body.substring(0, 30));
+    \\      _xhrFlowCount++;
+    \\      var flowNum = _xhrFlowCount;
+    \\      var elapsed = Date.now() - _flowStartTime;
+    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + body.length);
+    \\      console.warn('IF_BODY_URL: ' + (this._stUrl || '').slice(-60));
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
-    \\        var rspHigh = 0;
-    \\        for (var j = 0; j < rsp.length; j++) {
-    \\          if (rsp.charCodeAt(j) > 127) rspHigh++;
+    \\        var elapsed2 = Date.now() - _flowStartTime;
+    \\        // Check response headers for Set-Cookie
+    \\        var hdrs = xhr.getAllResponseHeaders() || '';
+    \\        console.warn('IF_RSP: f=' + flowNum + ' t=' + elapsed2 + 'ms s=' + xhr.status + ' len=' + rsp.length);
+    \\        if (hdrs.indexOf('set-cookie') >= 0 || hdrs.indexOf('Set-Cookie') >= 0) {
+    \\          console.warn('IF_RSP_COOKIE: ' + hdrs.substring(0,80));
     \\        }
-    \\        console.warn('IF_RSP: len=' + rsp.length + ' high=' + rspHigh + ' first30=' + rsp.substring(0, 30));
     \\      });
     \\    }
     \\    return _origXHRSend.apply(this, arguments);
     \\  };
-    \\  // Track setTimeout usage
+    \\  // Accelerate 550ms VM processing timers to 1ms
     \\  var _stCount = 0;
     \\  var _origST = window.setTimeout;
     \\  window.setTimeout = function(fn, ms) {
     \\    _stCount++;
+    \\    var actualMs = ms;
+    \\    if (ms === 550) actualMs = 1;
     \\    if (_stCount <= 5 || _stCount % 10 === 0) {
-    \\      console.warn('IF_TIMER: count=' + _stCount + ' ms=' + ms);
+    \\      console.warn('IF_TIMER: count=' + _stCount + ' ms=' + ms + (actualMs !== ms ? '->1' : ''));
+    \\    }
+    \\    if (actualMs !== ms) {
+    \\      var args = [fn, actualMs];
+    \\      for (var ai = 2; ai < arguments.length; ai++) args.push(arguments[ai]);
+    \\      return _origST.apply(window, args);
     \\    }
     \\    return _origST.apply(window, arguments);
     \\  };
@@ -590,17 +601,34 @@ pub const script: [:0]const u8 =
     // Worker polyfill for managed challenge POW
     // CF creates Workers from Blob URLs for proof-of-work computation.
     // This polyfill runs worker code inline on the main thread.
+    // Key optimization: intercept createObjectURL to pre-cache blob content,
+    // avoiding async fetch() when Worker is created.
     \\(function() {
+    \\  var _blobCache = {};
+    \\  var _origCreateObjectURL = URL.createObjectURL;
+    \\  URL.createObjectURL = function(blob) {
+    \\    var url = _origCreateObjectURL.call(URL, blob);
+    \\    // Synchronously cache blob text content for instant Worker loading
+    \\    if (blob && blob._textContent) {
+    \\      _blobCache[url] = blob._textContent;
+    \\    }
+    \\    return url;
+    \\  };
     \\  var _origBlob = window.Blob;
     \\  window.Blob = function(parts, options) {
-    \\    return new _origBlob(parts, options);
+    \\    var blob = new _origBlob(parts, options);
+    \\    // Store text parts synchronously for Worker blob cache
+    \\    try {
+    \\      if (parts && parts.length > 0 && typeof parts[0] === 'string') {
+    \\        blob._textContent = parts.join('');
+    \\      }
+    \\    } catch(e) {}
+    \\    return blob;
     \\  };
     \\  window.Blob.prototype = _origBlob.prototype;
     \\  var _origWorker = window.Worker;
     \\  window.Worker = function(url) {
-    \\    console.warn('IF_WORKER: created url=' + (typeof url === 'string' ? url.substring(0,30) : typeof url));
     \\    var _code = null, _msgHandler = null;
-    \\    var _pmRetries = 0;
     \\    var worker = {
     \\      onmessage: null, onerror: null,
     \\      _listeners: {},
@@ -615,13 +643,12 @@ pub const script: [:0]const u8 =
     \\        }
     \\        try {
     \\          var scope = { postMessage: function(msg) {
-    \\            setTimeout(function() {
-    \\              var ev = {data: msg, isTrusted: true, origin: '', source: null, type: 'message',
-    \\                     ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
-    \\                     stopImmediatePropagation: function(){}};
-    \\              if (worker.onmessage) worker.onmessage(ev);
-    \\              (worker._listeners['message'] || []).forEach(function(fn) { fn(ev); });
-    \\            }, 1);
+    \\            // Deliver worker→main messages synchronously for speed
+    \\            var ev = {data: msg, isTrusted: true, origin: '', source: null, type: 'message',
+    \\                   ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
+    \\                   stopImmediatePropagation: function(){}};
+    \\            if (worker.onmessage) worker.onmessage(ev);
+    \\            (worker._listeners['message'] || []).forEach(function(fn) { fn(ev); });
     \\          }, addEventListener: function(t, fn) { if (t === 'message') _msgHandler = fn; },
     \\          removeEventListener: function() {}, close: function() {},
     \\          importScripts: function() {},
@@ -661,18 +688,12 @@ pub const script: [:0]const u8 =
     \\            ArrayBuffer,DataView,TextEncoder,TextDecoder,
     \\            window.atob,window.btoa,console,setTimeout,setInterval,
     \\            clearTimeout,clearInterval,scope);
-    \\          // Use scope.onmessage if addEventListener wasn't used
+    \\          // Deliver main→worker message synchronously
     \\          var handler = _msgHandler || scope.onmessage;
     \\          if (handler) {
-    \\            var mev = new MessageEvent('message', {data: data});
-    \\            var itOk = false;
-    \\            try { Object.defineProperty(mev, 'isTrusted', {value: true}); itOk = mev.isTrusted === true; } catch(e3) { itOk = false; }
-    \\            if (!itOk) {
-    \\              // Fallback: create a plain object that looks like a MessageEvent
-    \\              mev = {data: data, isTrusted: true, origin: '', source: null, type: 'message',
+    \\            var mev = {data: data, isTrusted: true, origin: '', source: null, type: 'message',
     \\                     ports: [], lastEventId: '', preventDefault: function(){}, stopPropagation: function(){},
     \\                     stopImmediatePropagation: function(){}};
-    \\            }
     \\            handler(mev);
     \\          }
     \\        } catch(e) {
@@ -691,15 +712,15 @@ pub const script: [:0]const u8 =
     \\      }
     \\    };
     \\    if (typeof url === 'string' && url.startsWith('blob:')) {
-    \\      console.warn('IF_WORKER: fetching blob');
-    \\      fetch(url).then(function(r) { return r.text(); }).then(function(code) {
-    \\        _code = code;
-    \\        console.warn('IF_WORKER: code loaded len=' + code.length + ' content=' + code.substring(0,60));
-    \\      }).catch(function(e) {
-    \\        console.warn('IF_WORKER: fetch FAILED ' + (e.message || e));
-    \\      });
-    \\    } else {
-    \\      console.warn('IF_WORKER: non-blob url');
+    \\      // Try cached blob content first (instant)
+    \\      if (_blobCache[url]) {
+    \\        _code = _blobCache[url];
+    \\      } else {
+    \\        // Fallback to fetch
+    \\        fetch(url).then(function(r) { return r.text(); }).then(function(code) {
+    \\          _code = code;
+    \\        }).catch(function() {});
+    \\      }
     \\    }
     \\    return worker;
     \\  };
