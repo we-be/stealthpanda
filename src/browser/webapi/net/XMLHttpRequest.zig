@@ -255,6 +255,15 @@ pub fn send(self: *XMLHttpRequest, body_: ?[]const u8) !void {
     const cookie_support = self._with_credentials or try page.isSameOrigin(self._url);
 
     try self._request_headers.populateHttpHeader(page.call_arena, &headers);
+
+    // Add Origin header for cross-origin requests (per Fetch spec)
+    if (!cookie_support and self._method == .POST) {
+        if (page.origin) |origin| {
+            const origin_header = try std.mem.concatWithSentinel(page.call_arena, u8, &.{ "Origin: ", origin }, 0);
+            try headers.add(origin_header);
+        }
+    }
+
     if (cookie_support) {
         try page.headersForRequest(&headers);
     }

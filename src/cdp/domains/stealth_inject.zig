@@ -159,7 +159,14 @@ pub const script: [:0]const u8 =
     \\  // XHR tracking
     \\  var _origXHRSend = XMLHttpRequest.prototype.send;
     \\  var _origXHROpen = XMLHttpRequest.prototype.open;
-    \\  XMLHttpRequest.prototype.open = function(m, u) { this._stUrl = u; return _origXHROpen.apply(this, arguments); };
+    \\  XMLHttpRequest.prototype.open = function(m, u) { this._stUrl = u; this._stMethod = m; return _origXHROpen.apply(this, arguments); };
+    \\  var _origSetHdr = XMLHttpRequest.prototype.setRequestHeader;
+    \\  XMLHttpRequest.prototype.setRequestHeader = function(name, val) {
+    \\    if (name === 'cf-chl-ra' || name === 'cf-chl') {
+    \\      this['_h_' + name] = val;
+    \\    }
+    \\    return _origSetHdr.apply(this, arguments);
+    \\  };
     \\  var _xhrFlowCount = 0;
     \\  var _flowStartTime = Date.now();
     \\  XMLHttpRequest.prototype.send = function(body) {
@@ -170,8 +177,8 @@ pub const script: [:0]const u8 =
     \\      var elapsed = Date.now() - _flowStartTime;
     \\      var urlEnd = (this._stUrl || '').split('/').slice(-2).join('/');
     \\      var bodyStr = (typeof body === 'string') ? body : '';
-    \\      var sfx = bodyStr.substring(Math.max(0, bodyStr.length - 20));
-    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + bodyStr.length + ' url=' + urlEnd + ' sfx=' + sfx);
+    \\      var ra = this['_h_cf-chl-ra'];
+    \\      console.warn('IF_BODY: f=' + flowNum + ' t=' + elapsed + 'ms len=' + bodyStr.length + ' method=' + this._stMethod + ' ra=' + ra);
     \\      var xhr = this;
     \\      xhr.addEventListener('load', function() {
     \\        var rsp = xhr.responseText || '';
