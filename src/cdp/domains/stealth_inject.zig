@@ -204,19 +204,27 @@ pub const script: [:0]const u8 =
     \\  window.addEventListener('error', function(e) {
     \\    console.warn('IF_ERR: ' + (e.message || '') + ' at ' + (e.filename || '').slice(-40) + ':' + e.lineno);
     \\  });
-    \\  // Track ALL errors in the iframe — the chl_api_m fallback path is
-    \\  // triggered by a failed operation in the VM bytecode.
-    \\  // Chrome makes 0 chl_api_m requests. We make 5-7.
-    \\  // Find what triggers the fallback.
-    \\  var _errLog = [];
+    \\  // Track property accesses on document that might differ from Chrome
+    \\  var _docAccess = {};
+    \\  var _docAccessCount = 0;
+    \\  ['cookie','referrer','readyState','domain','title','characterSet','contentType',
+    \\   'compatMode','documentMode','designMode','dir','hidden','visibilityState',
+    \\   'fullscreenEnabled','pictureInPictureEnabled','wasDiscarded','lastModified',
+    \\   'baseURI','URL','documentURI'].forEach(function(prop) {
+    \\    var origVal = document[prop];
+    \\    try {
+    \\      Object.defineProperty(document, prop, {
+    \\        get: function() { if (!_docAccess[prop]) { _docAccess[prop] = 1; _docAccessCount++; if (_docAccessCount <= 15) console.warn('DOC_GET: ' + prop + '=' + String(origVal).substring(0,60)); } return origVal; },
+    \\        configurable: true, enumerable: true
+    \\      });
+    \\    } catch(e) {}
+    \\  });
     \\  window.addEventListener('error', function(e) {
-    \\    _errLog.push('ERR:' + (e.message||'') + '@' + e.lineno);
-    \\    if (_errLog.length <= 5) console.warn('IF_ERR: ' + e.message + ' at ' + (e.filename||'').slice(-30) + ':' + e.lineno);
+    \\    if (_errCount <= 30) console.warn('IF_ERR: ' + (e.message||'') + ' at ' + (e.filename||'').slice(-30) + ':' + e.lineno);
     \\  });
     \\  window.addEventListener('unhandledrejection', function(e) {
     \\    var r = e.reason || {};
-    \\    _errLog.push('REJ:' + (r.message || String(r)).substring(0,40));
-    \\    if (_errLog.length <= 5) console.warn('IF_REJ: ' + (r.message || String(r)).substring(0,60));
+    \\    if (_errCount <= 30) console.warn('IF_REJ: ' + (r.message || String(r)).substring(0,60));
     \\  });
     \\  // Track property access failures via Proxy (for window and document)
     \\  // This catches the VM probing for APIs that don't exist
